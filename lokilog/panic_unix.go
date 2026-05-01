@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/adrg/xdg"
+	"golang.org/x/sys/unix"
 )
 
 func setupCrashLog() {
@@ -29,5 +29,5 @@ func setupCrashLog() {
 
 	// Redirect stderr (FD 2) to the file.
 	// This ensures that even unrecovered panics from the Go runtime go to the file.
-	_ = syscall.Dup2(int(f.Fd()), 2)
+	_ = unix.Dup2(int(f.Fd()), 2)
 }
