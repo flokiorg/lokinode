@@ -65,8 +65,10 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-x-hidden relative">
+      {/* Content — overflow-y:hidden here so the inner motion.div's
+          overflow-y-auto is correctly constrained on all engines.
+          Without this, WKWebView (macOS) can let content escape the container. */}
+      <div className="flex-1 overflow-x-hidden overflow-y-hidden relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}

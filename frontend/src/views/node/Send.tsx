@@ -166,7 +166,7 @@ export default function Send() {
           <span className="text-white text-[16px] font-bold font-headline tracking-tight">{t('send.review_title')}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-[20px] py-[24px] custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-[20px] py-[24px]">
           <div className="flex flex-col gap-[24px]">
             
             {/* Recipient Card */}
@@ -260,7 +260,7 @@ export default function Send() {
   // ── INPUT VIEW ──
   return (
     <div className="flex flex-col h-full overflow-hidden animate-in fade-in duration-300">
-      <div className="flex-1 overflow-y-auto px-[20px] py-[16px] custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-[20px] py-[16px]">
         <div className="flex flex-col gap-[24px]">
           
           {/* Recipient */}
@@ -308,7 +308,7 @@ export default function Send() {
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="0.00000000"
-                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-700 text-[24px] h-[64px] font-mono rounded-xl transition-all"
+                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-700 text-[24px] h-[64px] font-mono rounded-xl transition-all py-[16px] leading-none"
               />
               <span className="absolute right-[16px] top-1/2 -translate-y-1/2 text-gray-700 font-bold text-[14px] pointer-events-none">FLC</span>
             </div>

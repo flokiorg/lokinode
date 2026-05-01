@@ -27,7 +27,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="opacity-0 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-500 hover:text-[#DA9526] relative"
+      className="opacity-30 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-500 hover:text-[#DA9526] relative"
     >
       <div className="w-[12px] h-[12px] relative">
         <Copy 

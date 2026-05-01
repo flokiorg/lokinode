@@ -374,7 +374,7 @@ function Node() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="h-full overflow-y-auto"
+              className="h-full overflow-y-auto overscroll-y-contain"
             >
               {tab === 'overview' && <OverviewTab info={info} balance={balance} onStop={handleStop} onLock={handleLock} isStopping={isStopping} isLocking={isLocking} />}
               {tab === 'history'  && <Transactions />}
@@ -513,7 +513,12 @@ function Node() {
                   <p className="text-gray-500 text-[13px] font-body">{t('unlock.subtitle')}</p>
                 </div>
 
-                <div className="w-full flex flex-col gap-[16px]">
+                {/* Stop pointer events from propagating to the drag sheet so clicks on
+                    the input, eye-toggle, and Unlock button are not swallowed. */}
+                <div
+                  className="w-full flex flex-col gap-[16px]"
+                  onPointerDown={e => e.stopPropagation()}
+                >
                   <div className="relative">
                     <Input
                       type={showPassword ? 'text' : 'password'}
@@ -529,7 +534,7 @@ function Node() {
                       <button
                         type="button"
                         tabIndex={-1}
-                        onClick={() => setShowPassword(!showPassword)}
+                        onClick={() => setShowPassword(v => !v)}
                         className="absolute right-[16px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
                       >
                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

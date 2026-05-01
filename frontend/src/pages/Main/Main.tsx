@@ -519,7 +519,12 @@ function Main() {
                 <div className="w-[40px] h-[4px] bg-gray-600 rounded-full" />
               </div>
 
-              <div className="px-[24px] pb-[40px] flex flex-col gap-[24px] overflow-y-auto">
+              {/* Stop pointer events from propagating to the drag sheet so
+                  node selection buttons and Browse button fire correctly. */}
+              <div
+                className="px-[24px] pb-[40px] flex flex-col gap-[24px] overflow-y-auto"
+                onPointerDown={e => e.stopPropagation()}
+              >
                 <div>
                   <p className="text-white text-[20px] font-bold font-headline mb-[4px]">Open Existing Node</p>
                   <p className="text-gray-500 text-[13px] font-body">Select a previously managed node or browse your filesystem.</p>

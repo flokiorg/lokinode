@@ -178,7 +178,6 @@ function CredentialRow({
       {/* Value */}
       <div
         className="text-[10px] font-mono text-gray-400 break-all leading-[1.65] max-h-[64px] overflow-y-auto"
-        style={{ scrollbarWidth: 'none' }}
       >
         {loading
           ? <Skeleton className="h-[10px] w-full" />

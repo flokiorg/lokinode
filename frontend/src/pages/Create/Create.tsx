@@ -11,7 +11,7 @@ function Create() {
   useEffect(() => { reset(); }, []);
 
   return (
-    <div className="flex flex-col h-full items-center justify-center pt-[116px] w-full">
+    <div className="flex flex-col h-full items-center justify-start overflow-y-auto pt-[132px] pb-[24px] w-full">
       {status === 'pwd' ? <Pwd /> : <Tab />}
     </div>
   );
