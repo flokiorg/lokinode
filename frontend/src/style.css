@@ -32,22 +32,26 @@ body {
   background-color: #121212;
   color: #f9f9f9;
   overscroll-behavior: none;
+  /* Normalize font rendering across macOS (WKWebView), Windows (WebView2),
+     and Linux (WebKitGTK). Without this, macOS renders heavier subpixel
+     antialiasing while Windows/Linux use grayscale — making the same font
+     look noticeably different across platforms. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 html {
   background-color: #121212;
   color: #f9f9f9;
-  font-family: 'Space Grotesk', sans-serif;
+  /* Match body font so any element not inheriting body still gets Space Grotesk
+     instead of the OS default sans-serif (critical on Linux/Windows). */
+  font-family: 'Space Grotesk Regular', sans-serif;
   overscroll-behavior: none;
 }
 
 
-/*body {*/
-/*  margin: 0;*/
-/*  color: rgb(17, 18, 19);*/
-/*  font-family: 'Roboto', sans-serif;*/
-/*  !*font-family: "CustomFont", sans-serif, SpaceGrotesk, SpaceGrotesk;;*!*/
-/*}*/
+
 
 @layer base {
   :root {
@@ -103,26 +107,7 @@ html {
   }
 }
 
-.tooltip {
-  position: relative;
-  display: inline-block;
-  cursor: pointer;
-}
-.tooltip:hover::before {
-  content: attr(data-tooltip);
-  position: absolute;
-  width: 200px;
-  /*height: 200px;*/
-  white-space: pre-wrap;
-  top: 120%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px;
-  background-color: #333;
-  color: #fff;
-  border-radius: 4px;
-  z-index: 1;
-}
+
 
 @layer base {
   * {
@@ -139,13 +124,56 @@ html {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Hide number input arrows (spinners) */
+/* Hide number input spinner arrows on all engines:
+   -webkit-appearance: none  → macOS WKWebView, Windows WebView2, Linux WebKitGTK
+   appearance: none          → standards-based (Chromium 84+, Firefox)
+   -moz-appearance           → Firefox fallback */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 input[type=number] {
   -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ── Modern scrollbar — Loki Kinetic dark theme ─────────────────────────────
+   Works across all Wails targets:
+   • macOS  — WKWebView: ::-webkit-scrollbar with a non-zero width disables the
+              native overlay scrollbar and activates our custom one globally.
+   • Windows — WebView2 (Chromium): full webkit + standards support.
+   • Linux   — WebKitGTK: webkit pseudo-elements + scrollbar-width supported.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Standards-based: Firefox & Chromium 121+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* WebKit (macOS WKWebView, Windows WebView2, Linux WebKitGTK) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(218, 149, 38, 0.55);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
