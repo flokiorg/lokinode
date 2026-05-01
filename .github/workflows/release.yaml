@@ -32,15 +32,19 @@ jobs:
 
             const linuxId = await getLatestRunId('linux.yaml');
             const windowsId = await getLatestRunId('windows.yaml');
+            const macosId = await getLatestRunId('macos.yaml');
 
             if (!linuxId) core.setFailed("No successful Linux runs found.");
             if (!windowsId) core.setFailed("No successful Windows runs found.");
+            if (!macosId) core.setFailed("No successful macOS runs found.");
 
             console.log(`Linux Run ID: ${linuxId}`);
             console.log(`Windows Run ID: ${windowsId}`);
+            console.log(`macOS Run ID: ${macosId}`);
 
             core.setOutput('linux_run_id', linuxId);
             core.setOutput('windows_run_id', windowsId);
+            core.setOutput('macos_run_id', macosId);
 
       - name: Read Version
         id: version
@@ -82,6 +86,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           run-id: ${{ steps.get_run_ids.outputs.windows_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: artifacts
+
+      - name: Download macOS Artifacts
+        if: steps.check_note.outputs.exists == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ steps.get_run_ids.outputs.macos_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: artifacts
 
