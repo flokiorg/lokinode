@@ -25,10 +25,10 @@ function detectLevel(line: string): Level {
 const LEVEL_COLOR: Record<Level, string> = {
   err: '#f87171',
   wrn: '#fbbf24',
-  inf: '#c9cdd4',
-  dbg: '#6b7280',
-  trc: '#4b5563',
-  raw: '#6b7280',
+  inf: '#d1d5db',
+  dbg: '#9ca3af',
+  trc: '#888888',
+  raw: '#9ca3af',
 };
 
 const BADGE: Partial<Record<Level, { label: string; fg: string; bg: string }>> = {
@@ -150,7 +150,7 @@ export default function Logs() {
                 : 'bg-red-500'
             }`}
           />
-          <span className="text-[10px] font-mono text-gray-600 select-none">
+          <span className="text-[10px] font-mono text-gray-400 select-none">
             {connStatus === 'live'       ? t('logs.live')
            : connStatus === 'connecting' ? t('logs.connecting')
            :                              t('logs.reconnecting')}
@@ -158,12 +158,12 @@ export default function Logs() {
         </div>
 
         {filename && (
-          <span className="text-[9px] font-mono text-gray-700 select-none truncate mx-[12px]">
+          <span className="text-[9px] font-mono text-gray-400 select-none truncate mx-[12px]">
             {filename}
           </span>
         )}
 
-        <span className="text-[10px] font-mono text-gray-700 select-none tabular-nums shrink-0">
+        <span className="text-[10px] font-mono text-gray-400 select-none tabular-nums shrink-0">
           {t('logs.lines', { count: entries.length.toLocaleString() })}
         </span>
       </div>
@@ -176,7 +176,7 @@ export default function Logs() {
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#252525 transparent' }}
         >
           {entries.length === 0 ? (
-            <p className="text-[10px] font-mono text-gray-700 mt-[2px]">
+            <p className="text-[10px] font-mono text-gray-400 mt-[2px]">
               {connStatus === 'error'
                 ? t('logs.offline')
                 : t('logs.waiting')}

@@ -121,7 +121,7 @@ export default function Receive() {
             <Copy
               size={14}
               strokeWidth={2}
-              className={`absolute inset-0 text-gray-500 transition-all duration-200 ${
+              className={`absolute inset-0 text-gray-400 transition-all duration-200 ${
                 copied ? 'opacity-0 scale-75' : 'opacity-100 scale-100'
               }`}
             />

@@ -28,7 +28,7 @@ function PwdRow({
 
   return (
     <div className={`flex flex-col gap-[6px] px-[16px] py-[12px] ${last ? '' : 'border-b border-white/[0.04]'}`}>
-      <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">
+      <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
         {label}
       </span>
       <div className="flex items-center gap-[8px]">
@@ -37,14 +37,14 @@ function PwdRow({
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder ?? '••••••••'}
-          className="flex-1 bg-transparent text-white text-[13px] placeholder:text-gray-700 outline-none border-none focus:ring-0 caret-[#DA9526]"
+          className="flex-1 bg-transparent text-white text-[13px] placeholder:text-gray-400 outline-none border-none focus:ring-0 caret-[#DA9526]"
           autoComplete="off"
           spellCheck={false}
         />
         <button
           type="button"
           onClick={() => setShow(s => !s)}
-          className="text-gray-600 hover:text-gray-400 transition-colors shrink-0"
+          className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
           tabIndex={-1}
         >
           {show
@@ -138,7 +138,7 @@ export default function Security() {
 
         {/* Section label row */}
         <div className="px-[16px] py-[11px] border-b border-white/[0.04]">
-          <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">
+          <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
             {t('security.section')}
           </span>
         </div>

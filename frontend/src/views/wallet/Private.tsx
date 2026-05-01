@@ -35,7 +35,7 @@ function Private() {
       <div className="flex flex-col gap-[16px] w-full">
         <Field label={t('wallet.private.label')} errorText={error}>
           <textarea
-            className="w-full bg-[#1c1c1e] border border-white/[0.06] rounded-md p-3 text-white text-[13px] placeholder:text-gray-600 focus:border-[#DA9526]/60 outline-none min-h-[96px] resize-none transition-colors font-mono"
+            className="w-full bg-[#1c1c1e] border border-white/[0.06] rounded-md p-3 text-white text-[13px] placeholder:text-gray-400 focus:border-[#DA9526]/60 outline-none min-h-[96px] resize-none transition-colors font-mono"
             placeholder={t('wallet.private.ph')}
             value={privateKey}
             onChange={(e) => { setPrivateKey(e.target.value); setError(''); }}

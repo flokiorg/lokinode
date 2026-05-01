@@ -47,7 +47,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
       onClick={() => onChange(!value)}
       aria-pressed={value}
       className={`relative shrink-0 w-[42px] h-[24px] rounded-full transition-colors duration-200 focus:outline-none ${
-        value ? 'bg-[#DA9526]' : 'bg-gray-700'
+        value ? 'bg-[#DA9526]' : 'bg-gray-600'
       }`}
     >
       <div
@@ -80,7 +80,7 @@ function CopyRow({ label, value, last }: { label: string; value: string; last?: 
       }`}
     >
       <div className="flex flex-col gap-[1px] flex-1 min-w-0 mr-[12px]">
-        <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">
+        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
           {label}
         </span>
         <input type="text" readOnly value={value || '—'} className="bg-transparent border-none text-gray-300 text-[11px] font-mono focus:ring-0 outline-none w-full px-0 py-0 cursor-text" />
@@ -88,7 +88,7 @@ function CopyRow({ label, value, last }: { label: string; value: string; last?: 
       <button
         onClick={copy}
         disabled={!value}
-        className="text-gray-500 hover:text-[#DA9526] transition-colors disabled:opacity-30 shrink-0 cursor-pointer"
+        className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30 shrink-0 cursor-pointer"
         title={t('common.copy')}
       >
         {copied
@@ -131,7 +131,7 @@ function CredentialRow({
     <div className="bg-[#1c1c1e] border border-white/[0.06] rounded-2xl p-[14px] flex flex-col gap-[10px]">
       {/* Header row */}
       <div className="flex items-center justify-between gap-[8px]">
-        <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">
+        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
           {label}
         </span>
 
@@ -164,7 +164,7 @@ function CredentialRow({
           <button
             onClick={copy}
             disabled={!display}
-            className="text-gray-500 hover:text-[#DA9526] transition-colors disabled:opacity-30"
+            className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30"
             title={t('common.copy')}
           >
             {copied
@@ -181,7 +181,7 @@ function CredentialRow({
       >
         {loading
           ? <Skeleton className="h-[10px] w-full" />
-          : display || <span className="text-gray-700">—</span>
+          : display || <span className="text-gray-600">—</span>
         }
       </div>
     </div>
@@ -225,8 +225,8 @@ function EditableRow({
   return (
     <div className={`px-[16px] py-[12px] ${last ? '' : 'border-b border-white/[0.04]'}`}>
       <div className="flex flex-col gap-[2px] mb-[8px]">
-        <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
-        {sub && <span className="text-gray-600 text-[10px] leading-[1.5]">{sub}</span>}
+        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
+        {sub && <span className="text-gray-500 text-[10px] leading-[1.5]">{sub}</span>}
       </div>
       <div className="relative">
         <input
@@ -239,7 +239,7 @@ function EditableRow({
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          className={`w-full bg-[#121212] rounded-lg border px-[12px] py-[9px] text-[12px] font-mono text-gray-200 placeholder:text-white/20 outline-none caret-[#DA9526] transition-colors cursor-pointer focus:cursor-text ${onAction ? 'pr-[40px]' : ''} ${
+          className={`w-full bg-[#121212] rounded-lg border px-[12px] py-[9px] text-[12px] font-mono text-gray-200 placeholder:text-gray-500 outline-none caret-[#DA9526] transition-colors cursor-pointer focus:cursor-text ${onAction ? 'pr-[40px]' : ''} ${
             error
               ? 'border-red-500/60 focus:border-red-500'
               : warning
@@ -463,7 +463,7 @@ export default function Network() {
         <div className={`flex items-center justify-between gap-[16px] px-[16px] py-[14px] ${nodePublic ? 'border-b border-white/[0.04]' : ''}`}>
           <div className="flex-1 min-w-0">
             <p className="text-white text-[13px] font-label">{t('network.public_node')}</p>
-            <p className="text-gray-500 text-[11px] mt-[2px] leading-[1.5]">
+            <p className="text-gray-400 text-[11px] mt-[2px] leading-[1.5]">
               {t('network.public_node_sub')}
             </p>
           </div>
@@ -505,7 +505,7 @@ export default function Network() {
         <CopyRow label={t('network.rest')} value={info?.restEndpoint ?? ''} last />
       </div>
 
-      <p className="text-gray-700 text-[10px] font-mono text-center -mt-[4px]">
+      <p className="text-gray-500 text-[10px] font-mono text-center -mt-[4px]">
         {t('network.restart_hint')}
       </p>
 
@@ -530,7 +530,7 @@ export default function Network() {
 
 function GroupHeader({ label }: { label: string }) {
   return (
-    <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em] px-[4px] -mb-[4px] mt-[4px]">
+    <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em] px-[4px] -mb-[4px] mt-[4px]">
       {label}
     </span>
   );

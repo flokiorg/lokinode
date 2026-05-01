@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from '@/i18n/context';
 import { useToast } from '@/hooks/useToast';
 import { useBalance } from '@/hooks/useBalance';
 import { fetcher, post } from '@/lib/fetcher';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2, CheckCircle2, AlertCircle, ChevronLeft, Send as SendIcon, Info } from 'lucide-react';
-import type { FeesResponse, FundPsbtResponse, FinalizePsbtResponse, SendResponse } from '@/lib/types';
+import type { FeesResponse, FundPsbtResponse, FinalizePsbtResponse, SendResponse, OutputLock } from '@/lib/types';
 import { Toaster } from '@/components/ui/toaster';
 import { formatFLC } from '@/lib/utils';
 import { BrowserOpenURL } from '../../../wailsjs/runtime';
@@ -27,6 +27,7 @@ export default function Send() {
   // PSBT / Review state
   const [psbt, setPsbt] = useState<string | null>(null);
   const [totalFee, setTotalFee] = useState<number | null>(null);
+  const [locks, setLocks] = useState<OutputLock[] | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +41,36 @@ export default function Send() {
       .catch(() => {});
   }, []);
 
-  const satPerVbyte = useMemo(() => {
+  // Auto-release locks on unmount if we haven't sent
+  const unmountRef = useRef({ psbt, locks });
+  useEffect(() => {
+    unmountRef.current = { psbt, locks };
+  }, [psbt, locks]);
+
+  useEffect(() => {
+    return () => {
+      const { psbt, locks } = unmountRef.current;
+      if (psbt && locks && locks.length > 0) {
+        fetch('/api/send/release-psbt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locks }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+  }, []);
+
+  function handleRelease() {
+    if (locks && locks.length > 0) {
+      post('/api/send/release-psbt', { locks }).catch(() => {});
+    }
+    setPsbt(null);
+    setTotalFee(null);
+    setLocks(null);
+  }
+
+  const lokiPerVbyte = useMemo(() => {
     // Standard defaults if fees aren't loaded yet
     const defaults = { fast: 10, standard: 5, economy: 1 };
     if (!fees) return defaults[feePreset];
@@ -51,22 +81,23 @@ export default function Send() {
   }, [fees, feePreset]);
 
   // Rough estimate for live feedback (standard tx ~140 vB)
-  const roughFee = (140 * satPerVbyte) / 1e8;
+  const roughFee = (140 * lokiPerVbyte) / 1e8;
 
   async function handleReview() {
-    const sats = Math.round(parseFloat(amount) * 1e8);
-    if (!address || !sats || sats <= 0) return;
+    const loki = Math.round(parseFloat(amount) * 1e8);
+    if (!address || !loki || loki <= 0) return;
 
     setIsReviewing(true);
     setError(null);
     try {
       const resp = await post<FundPsbtResponse>('/api/send/fund-psbt', {
         address,
-        amount: sats,
-        satPerVbyte
+        amount: loki,
+        lokiPerVbyte
       });
       setPsbt(resp.psbt);
       setTotalFee(resp.totalFee);
+      setLocks(resp.locks);
     } catch (err: any) {
       setError(err.message || String(err));
       toast({ variant: 'destructive', title: t('send.errors.failed'), description: err.message || String(err) });
@@ -94,10 +125,9 @@ export default function Send() {
   }
 
   function reset() {
+    handleRelease();
     setAddress('');
     setAmount('');
-    setPsbt(null);
-    setTotalFee(null);
     setDone(null);
     setError(null);
   }
@@ -115,7 +145,7 @@ export default function Send() {
             onClick={() => BrowserOpenURL(`https://explorer.flokicoin.org/tx/${done}`)}
             className="group relative bg-[#1c1c1e] border border-white/[0.06] rounded-2xl p-[16px] cursor-pointer hover:border-[#DA9526]/40 transition-all w-full"
           >
-            <p className="text-gray-400 text-[11px] font-mono break-all leading-relaxed group-hover:text-gray-200 transition-colors">
+            <p className="text-gray-300 text-[11px] font-mono break-all leading-relaxed group-hover:text-white transition-colors">
               {done}
             </p>
             <div className="absolute top-[8px] right-[8px] opacity-0 group-hover:opacity-100 transition-opacity">
@@ -148,9 +178,9 @@ export default function Send() {
     );
   }
 
-  const amountSats = Math.round(parseFloat(amount) * 1e8) || 0;
-  const balanceSats = balance?.confirmed || 0;
-  const canReview = address && amountSats > 0 && amountSats <= balanceSats;
+  const amountLoki = Math.round(parseFloat(amount) * 1e8) || 0;
+  const balanceLoki = balance?.confirmed || 0;
+  const canReview = address && amountLoki > 0 && amountLoki <= balanceLoki;
 
   // ── REVIEW VIEW ──
   if (psbt && totalFee !== null) {
@@ -158,7 +188,7 @@ export default function Send() {
       <div className="flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
         <div className="px-[20px] py-[18px] border-b border-white/[0.04] flex items-center gap-[12px] bg-[#121212]/50 backdrop-blur-md">
           <button 
-            onClick={() => setPsbt(null)} 
+            onClick={handleRelease} 
             className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/[0.05] transition-all"
           >
             <ChevronLeft size={20} />
@@ -171,7 +201,7 @@ export default function Send() {
             
             {/* Recipient Card */}
             <div className="flex flex-col gap-[10px]">
-              <label className="text-gray-500 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
+              <label className="text-gray-400 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
                 {t('send.recipient')}
               </label>
               <div className="bg-[#1c1c1e] p-[20px] rounded-2xl border border-white/[0.06] shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
@@ -184,33 +214,33 @@ export default function Send() {
             {/* Values Grid */}
             <div className="grid grid-cols-2 gap-[16px]">
               <div className="flex flex-col gap-[10px]">
-                <label className="text-gray-500 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
+                <label className="text-gray-400 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
                   {t('send.sending_label')}
                 </label>
                 <div className="bg-[#1c1c1e] p-[20px] rounded-2xl border border-white/[0.06] h-full flex flex-col justify-center">
                   <p className="text-white text-[18px] font-mono font-bold leading-none mb-[6px]">
-                    {formatFLC(amountSats).split(' ')[0]}
+                    {formatFLC(amountLoki).split(' ')[0]}
                   </p>
-                  <span className="text-gray-600 text-[11px] font-label uppercase tracking-[0.05em]">FLC</span>
+                  <span className="text-gray-500 text-[11px] font-label uppercase tracking-[0.05em]">FLC</span>
                 </div>
               </div>
               
               <div className="flex flex-col gap-[10px]">
-                <label className="text-gray-500 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
+                <label className="text-gray-400 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
                   {t('send.network_fee')}
                 </label>
                 <div className="bg-[#1c1c1e] p-[20px] rounded-2xl border border-white/[0.06] h-full flex flex-col justify-center">
                   <p className="text-[#DA9526] text-[18px] font-mono font-bold leading-none mb-[6px]">
                     {formatFLC(totalFee).split(' ')[0]}
                   </p>
-                  <span className="text-[#DA9526]/40 text-[11px] font-label uppercase tracking-[0.05em]">FLC</span>
+                  <span className="text-[#DA9526]/60 text-[11px] font-label uppercase tracking-[0.05em]">FLC</span>
                 </div>
               </div>
             </div>
 
             {/* Total Cost Highlight */}
             <div className="mt-[8px] flex flex-col gap-[10px]">
-              <label className="text-gray-500 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
+              <label className="text-gray-400 text-[10px] font-label uppercase tracking-[0.12em] px-[4px]">
                 {t('send.total_cost')}
               </label>
               <div className="bg-[#DA9526]/[0.03] border border-[#DA9526]/20 rounded-3xl p-[24px] relative overflow-hidden group">
@@ -218,12 +248,12 @@ export default function Send() {
                 
                 <div className="relative z-10 flex items-baseline gap-[10px]">
                   <p className="text-[#DA9526] text-[32px] font-mono font-bold tracking-tighter">
-                    {formatFLC(amountSats + totalFee).split(' ')[0]}
+                    {formatFLC(amountLoki + totalFee).split(' ')[0]}
                   </p>
                   <span className="text-[#DA9526]/60 text-[15px] font-label uppercase tracking-widest font-semibold">FLC</span>
                 </div>
                 
-                <div className="relative z-10 mt-6 flex items-center gap-[10px] text-gray-500 bg-white/[0.02] border border-white/[0.04] w-fit px-3 py-1.5 rounded-full">
+                <div className="relative z-10 mt-6 flex items-center gap-[10px] text-gray-400 bg-white/[0.02] border border-white/[0.04] w-fit px-3 py-1.5 rounded-full">
                   <Info size={13} className="text-[#DA9526]/60" />
                   <span className="text-[11px] font-body">
                     {t('send.arrival_est', { time: feePreset === 'fast' ? '10' : feePreset === 'standard' ? '30' : '60' })}
@@ -273,10 +303,10 @@ export default function Send() {
                 value={address}
                 onChange={e => setAddress(e.target.value)}
                 placeholder={t('send.address_ph')}
-                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-700 text-[13px] h-[52px] font-mono rounded-xl transition-all pr-[40px]"
+                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-400 text-[13px] h-[52px] font-mono rounded-xl transition-all pr-[40px]"
               />
               {address && (
-                <button onClick={() => setAddress('')} className="absolute right-[14px] top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400">
+                <button onClick={() => setAddress('')} className="absolute right-[14px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
                   <AlertCircle size={14} />
                 </button>
               )}
@@ -291,10 +321,20 @@ export default function Send() {
               </label>
               {balance && (
                 <button 
-                  onClick={() => {
-                    // Send Max: total balance - rough fee estimate
-                    const maxSats = Math.max(0, balance.confirmed - Math.round(roughFee * 1e8));
-                    setAmount((maxSats / 1e8).toString());
+                  onClick={async () => {
+                    if (!address) {
+                      toast({ variant: 'default', title: t('common.info'), description: t('send.address_first') });
+                      return;
+                    }
+                    try {
+                      const resp = await post<{amount: number, totalFee: number}>('/api/send/max-sendable', {
+                        address,
+                        lokiPerVbyte
+                      });
+                      setAmount((resp.amount / 1e8).toString());
+                    } catch (err: any) {
+                      toast({ variant: 'destructive', title: t('send.errors.failed'), description: err.message });
+                    }
                   }}
                   className="text-[#DA9526] text-[10px] font-label uppercase tracking-[0.05em] hover:underline"
                 >
@@ -308,9 +348,9 @@ export default function Send() {
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
                 placeholder="0.00000000"
-                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-700 text-[24px] h-[64px] font-mono rounded-xl transition-all py-[16px] leading-none"
+                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-400 text-[24px] h-[64px] font-mono rounded-xl transition-all py-[16px] leading-none"
               />
-              <span className="absolute right-[16px] top-1/2 -translate-y-1/2 text-gray-700 font-bold text-[14px] pointer-events-none">FLC</span>
+              <span className="absolute right-[16px] top-1/2 -translate-y-1/2 text-gray-400 font-bold text-[14px] pointer-events-none">FLC</span>
             </div>
           </div>
 
@@ -320,8 +360,8 @@ export default function Send() {
               <label className="text-gray-500 text-[10px] font-label uppercase tracking-[0.1em]">
                 {t('send.fee_speed')}
               </label>
-              {amountSats > 0 && (
-                <span className="text-[10px] font-mono text-gray-600">
+              {amountLoki > 0 && (
+                <span className="text-[10px] font-mono text-gray-400">
                   Est. Fee: ~{roughFee.toFixed(8)} FLC
                 </span>
               )}
@@ -344,7 +384,7 @@ export default function Send() {
                     <span className={`text-[12px] font-label uppercase tracking-[0.05em] mb-[4px] ${isActive ? 'text-[#DA9526]' : 'text-gray-400'}`}>
                       {t(`send.${p}`)}
                     </span>
-                    <span className={`text-[10px] font-mono ${isActive ? 'text-[#DA9526]/80' : 'text-gray-600'}`}>
+                    <span className={`text-[10px] font-mono ${isActive ? 'text-[#DA9526]' : 'text-gray-400'}`}>
                       {rate || defaults[p]} loki/vB
                     </span>
                   </button>
@@ -370,7 +410,7 @@ export default function Send() {
           className={`w-full h-[54px] rounded-2xl font-bold font-label text-[15px] flex items-center justify-center gap-[12px] transition-all duration-300 ${
             canReview 
               ? 'bg-[#DA9526] text-black hover:bg-[#c8871f] active:scale-[0.98]' 
-              : 'bg-white/[0.05] text-gray-600'
+              : 'bg-white/[0.08] text-gray-400'
           }`}
         >
           {isReviewing ? (

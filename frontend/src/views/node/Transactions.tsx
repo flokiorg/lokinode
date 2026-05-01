@@ -27,7 +27,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="opacity-30 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-500 hover:text-[#DA9526] relative"
+      className="opacity-50 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-400 hover:text-[#DA9526] relative"
     >
       <div className="w-[12px] h-[12px] relative">
         <Copy 
@@ -77,7 +77,7 @@ export default function Transactions() {
     return (
       <div className="flex flex-col items-center justify-center h-[200px] gap-[8px] opacity-40">
         <Clock size={32} strokeWidth={1} />
-        <p className="text-gray-500 text-[13px] font-body">{t('history.empty')}</p>
+        <p className="text-gray-400 text-[13px] font-body">{t('history.empty')}</p>
       </div>
     );
   }
@@ -104,16 +104,16 @@ export default function Transactions() {
               </div>
               <div className="flex flex-col gap-[2px]">
                 <div className="flex items-center gap-[6px]">
-                  <p 
+                    <p 
                     onClick={() => BrowserOpenURL(`https://explorer.flokicoin.org/tx/${tx.txHash}`)}
-                    className="text-gray-400 text-[11px] font-mono tracking-tight cursor-pointer hover:text-[#DA9526] transition-colors flex items-center gap-[4px]"
+                    className="text-gray-300 text-[11px] font-mono tracking-tight cursor-pointer hover:text-[#DA9526] transition-colors flex items-center gap-[4px]"
                   >
                     {shortHash(tx.txHash)}
                     <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                   </p>
                   <CopyButton text={tx.txHash} />
                 </div>
-                <p className="text-gray-600 text-[10px] font-label uppercase tracking-wide">
+                <p className="text-gray-400 text-[10px] font-label uppercase tracking-wide">
                   {tx.timestamp ? formatDate(tx.timestamp) : '—'}
                 </p>
               </div>
@@ -128,7 +128,7 @@ export default function Transactions() {
                   <span className="text-[9px] font-label uppercase tracking-wider">{t('history.unconfirmed')}</span>
                 </div>
               ) : (
-                <p className="text-gray-600 text-[10px] font-mono tracking-tighter">
+                <p className="text-gray-400 text-[10px] font-mono tracking-tighter">
                   {tx.confirmations} CONF
                 </p>
               )}
@@ -140,7 +140,7 @@ export default function Transactions() {
       {data && data.total > txs.length && (
         <button
           onClick={() => setLimit((l) => l + 50)}
-          className="w-full py-[16px] text-gray-600 text-[11px] font-label uppercase tracking-widest hover:text-[#DA9526] transition-colors mt-[8px]"
+          className="w-full py-[16px] text-gray-400 text-[11px] font-label uppercase tracking-widest hover:text-[#DA9526] transition-colors mt-[8px]"
         >
           {t('history.load_more', { count: data.total - txs.length })}
         </button>

@@ -41,13 +41,13 @@ function Password() {
               placeholder={t('security.new_pwd_ph')}
               value={pwd}
               onChange={(e) => { setPwd(e.target.value); setError(''); }}
-              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
+              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
             />
             <button
               type="button"
               tabIndex={-1}
               onClick={() => setShowPwd(v => !v)}
-              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
             >
               {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
             </button>
@@ -61,13 +61,13 @@ function Password() {
               placeholder={t('wallet.pwd.repeat_ph')}
               value={confirmPwd}
               onChange={(e) => { setConfirmPwd(e.target.value); setError(''); }}
-              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
+              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
             />
             <button
               type="button"
               tabIndex={-1}
               onClick={() => setShowPwd(v => !v)}
-              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
             >
               {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
             </button>

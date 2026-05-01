@@ -48,7 +48,7 @@ function New() {
     }
   };
 
-  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0";
+  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0";
 
   return (
     <div className="flex flex-col items-center w-full px-[20px]">
@@ -56,7 +56,7 @@ function New() {
       {phase === 'phrase' && (
         <>
           <p className="text-white text-[18px] font-semibold font-headline text-center mb-[24px]">
-            {t('wallet.new.title')} <span className="text-gray-500 font-normal text-[14px]">{t('wallet.new.optional')}</span>
+            {t('wallet.new.title')} <span className="text-gray-400 font-normal text-[14px]">{t('wallet.new.optional')}</span>
           </p>
 
           <div className={`flex flex-col gap-[16px] w-full transition-opacity ${confirmLoading ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -73,7 +73,7 @@ function New() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassphrase(v => !v)}
-                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
                 >
                   {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
                 </button>
@@ -92,7 +92,7 @@ function New() {
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassphrase(v => !v)}
-                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
                 >
                   {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
                 </button>
@@ -111,14 +111,14 @@ function New() {
           <p className="text-white text-[18px] font-semibold font-headline text-center mb-[16px]">
             {t('wallet.new.recovery_title')}
           </p>
-          <p className="text-gray-500 text-[12px] text-center mb-[16px] px-[8px]">
+          <p className="text-gray-400 text-[12px] text-center mb-[16px] px-[8px]">
             {t('wallet.new.recovery_desc')}
           </p>
 
           <div className="grid grid-cols-3 gap-x-[12px] gap-y-[8px] w-full bg-[#1c1c1e] border border-white/[0.06] rounded-xl p-[16px]">
             {showCreateMnemonic.map((word: string, i: number) => (
               <div key={i} className="flex items-center gap-[6px]">
-                <span className="text-gray-600 text-[10px] w-[16px] text-right shrink-0">{i + 1}.</span>
+                <span className="text-gray-400 text-[10px] w-[16px] text-right shrink-0">{i + 1}.</span>
                 <span className="text-white text-[13px] font-medium truncate">{word}</span>
               </div>
             ))}

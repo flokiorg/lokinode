@@ -19,7 +19,7 @@ const ConfigForm = () => {
   const [aliasError, setAliasError] = React.useState(false);
 
   const fieldLabel = "text-gray-400 text-[11px] font-label uppercase tracking-[0.08em]";
-  const inputBase  = "w-full bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0 h-[38px]";
+  const inputBase  = "w-full bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0 h-[38px]";
 
   return (
     <div className="flex flex-col w-full gap-[16px]">
@@ -43,7 +43,7 @@ const ConfigForm = () => {
         <label className={fieldLabel}>{t('config.network')}</label>
 
         <div className="flex flex-col gap-[4px]">
-          <span className="text-gray-500 text-[10px] uppercase tracking-wide">{t('config.rest_cors')}</span>
+          <span className="text-gray-400 text-[10px] uppercase tracking-wide">{t('config.rest_cors')}</span>
           <Input
             type="text"
             className={inputBase}
@@ -54,7 +54,7 @@ const ConfigForm = () => {
         </div>
 
         <div className="flex flex-col gap-[4px]">
-          <span className="text-gray-500 text-[10px] uppercase tracking-wide">{t('config.rpc_listen')}</span>
+          <span className="text-gray-400 text-[10px] uppercase tracking-wide">{t('config.rpc_listen')}</span>
           <Input
             type="text"
             className={inputBase}
@@ -65,7 +65,7 @@ const ConfigForm = () => {
         </div>
 
         <div className="flex flex-col gap-[4px]">
-          <span className="text-gray-500 text-[10px] uppercase tracking-wide">{t('config.rest_listen')}</span>
+          <span className="text-gray-400 text-[10px] uppercase tracking-wide">{t('config.rest_listen')}</span>
           <Input
             type="text"
             className={inputBase}

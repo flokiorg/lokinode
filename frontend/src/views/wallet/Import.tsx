@@ -37,14 +37,14 @@ function Import() {
     }
   };
 
-  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0";
+  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0";
 
   return (
     <div className="flex flex-col items-center w-full px-[20px]">
       <div className="flex flex-col gap-[16px] w-full">
         <Field label={t('wallet.import.recovery')} errorText={error}>
           <textarea
-            className="w-full bg-[#1c1c1e] border border-white/[0.06] rounded-md p-3 text-white text-[13px] placeholder:text-gray-600 focus:border-[#DA9526]/60 outline-none min-h-[96px] resize-none transition-colors"
+            className="w-full bg-[#1c1c1e] border border-white/[0.06] rounded-md p-3 text-white text-[13px] placeholder:text-gray-400 focus:border-[#DA9526]/60 outline-none min-h-[96px] resize-none transition-colors"
             placeholder={t('wallet.import.recovery_ph')}
             value={mnemonic}
             onChange={(e) => { setMnemonic(e.target.value); setError(''); }}
@@ -66,7 +66,7 @@ function Import() {
               type="button"
               tabIndex={-1}
               onClick={() => setShowPassphrase(v => !v)}
-              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors focus:outline-none"
             >
               {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
             </button>
