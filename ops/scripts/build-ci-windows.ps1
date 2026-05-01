@@ -23,7 +23,6 @@ Push-Location "frontend"
 try {
     pnpm install
     if ($LASTEXITCODE -ne 0) { throw "pnpm install failed" }
-
     pnpm run build
     if ($LASTEXITCODE -ne 0) { throw "pnpm build failed" }
 } finally {
@@ -35,8 +34,12 @@ try {
 # -----------------------------------------------------------------------------
 Write-Host "--- Building Desktop App ---"
 
-if (-not (Test-Path "build/AppIcon.png")) { Write-Warning "build/AppIcon.png not found - Windows icon may be missing" }
-if (Test-Path "ops/windows") { Copy-Item -Recurse "ops/windows" "build/" -Force }
+if (-not (Test-Path "build/AppIcon.png")) {
+    Write-Warning "build/AppIcon.png not found - Windows icon may be missing"
+}
+if (Test-Path "ops/windows") {
+    Copy-Item -Recurse "ops/windows" "build/" -Force
+}
 
 function Build-Desktop {
     param (
@@ -52,10 +55,8 @@ function Build-Desktop {
         Remove-Item -Recurse -Force "build/bin"
     }
 
-    wails build -platform $WailsPlatform -webview2 embed -tags wails `
-        -ldflags "-s -w" `
-        -nsis `
-        -o "${Basename}.exe" -clean
+    # Run wails build on a single line to avoid backtick issues
+    wails build -platform $WailsPlatform -webview2 embed -tags wails -ldflags "-s -w" -nsis -o "${Basename}.exe" -clean
 
     if ($LASTEXITCODE -ne 0) { throw "wails build failed" }
 
