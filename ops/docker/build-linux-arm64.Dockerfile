@@ -50,6 +50,7 @@ RUN dpkg --add-architecture arm64 && \
     file \
     desktop-file-utils \
     squashfs-tools \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy ARM64 Sysroot

@@ -71,6 +71,7 @@ echo "Packaging AppImage..."
 rm -rf AppDir
 mkdir -p AppDir/usr/bin
 mkdir -p AppDir/usr/share/applications
+mkdir -p AppDir/usr/share/icons/hicolor/512x512/apps
 
 if [ -f "build/bin/${BASENAME}" ]; then
     cp "build/bin/${BASENAME}" "AppDir/usr/bin/lokinode"
@@ -79,7 +80,12 @@ else
     exit 1
 fi
 
-cp "build/AppIcon.png" "AppDir/lokinode.png"
+# Resize icon to 512x512 (linuxdeploy limit) if it's too large
+if [ -f "build/AppIcon.png" ]; then
+    convert "build/AppIcon.png" -resize 512x512 "AppDir/usr/share/icons/hicolor/512x512/apps/lokinode.png"
+else
+    echo "Warning: build/AppIcon.png not found"
+fi
 
 # Create Desktop File
 cat > AppDir/usr/share/applications/lokinode.desktop <<EOF
@@ -101,7 +107,7 @@ if [ "$GOARCH" == "amd64" ]; then
     "$LINUXDEPLOY_BIN" \
         --appdir AppDir \
         --output appimage \
-        --icon-file AppDir/lokinode.png \
+        --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/lokinode.png \
         --desktop-file AppDir/usr/share/applications/lokinode.desktop
     set +x
 
@@ -120,7 +126,7 @@ elif [ "$GOARCH" == "arm64" ]; then
 
     qemu-aarch64-static squashfs-root/AppRun \
         --appdir AppDir \
-        --icon-file AppDir/lokinode.png \
+        --icon-file AppDir/usr/share/icons/hicolor/512x512/apps/lokinode.png \
         --desktop-file AppDir/usr/share/applications/lokinode.desktop
 
     rm -rf squashfs-root

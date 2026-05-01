@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     file \
     desktop-file-utils \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20 + pnpm
