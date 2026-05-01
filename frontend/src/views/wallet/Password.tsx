@@ -1,5 +1,6 @@
 import { useToast } from '@/hooks/useToast';
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useWalletCreateStore } from '@/store/walletCreate';
 import { Field } from '@/components/ui/field';
@@ -10,6 +11,7 @@ function Password() {
   const { t } = useTranslation();
   const { pwd, setPwd, setStatus } = useWalletCreateStore();
   const [confirmPwd, setConfirmPwd] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const { toast } = useToast();
 
@@ -33,23 +35,43 @@ function Password() {
 
       <div className="flex flex-col gap-[16px] w-full">
         <Field label={t('wallet.pwd.label')} errorText={error && pwd.length < 8 ? error : undefined}>
-          <Input
-            type="password"
-            placeholder={t('security.new_pwd_ph')}
-            value={pwd}
-            onChange={(e) => { setPwd(e.target.value); setError(''); }}
-            className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0"
-          />
+          <div className="relative">
+            <Input
+              type={showPwd ? 'text' : 'password'}
+              placeholder={t('security.new_pwd_ph')}
+              value={pwd}
+              onChange={(e) => { setPwd(e.target.value); setError(''); }}
+              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPwd(v => !v)}
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+            >
+              {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
+            </button>
+          </div>
         </Field>
 
         <Field label={t('wallet.pwd.confirm')} errorText={error && pwd.length >= 8 ? error : undefined}>
-          <Input
-            type="password"
-            placeholder={t('wallet.pwd.repeat_ph')}
-            value={confirmPwd}
-            onChange={(e) => { setConfirmPwd(e.target.value); setError(''); }}
-            className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0"
-          />
+          <div className="relative">
+            <Input
+              type={showPwd ? 'text' : 'password'}
+              placeholder={t('wallet.pwd.repeat_ph')}
+              value={confirmPwd}
+              onChange={(e) => { setConfirmPwd(e.target.value); setError(''); }}
+              className="bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0 pr-[44px]"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPwd(v => !v)}
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+            >
+              {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
+            </button>
+          </div>
         </Field>
       </div>
 
@@ -61,3 +83,4 @@ function Password() {
 }
 
 export default Password;
+

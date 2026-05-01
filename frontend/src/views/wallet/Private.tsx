@@ -39,6 +39,10 @@ function Private() {
             placeholder={t('wallet.private.ph')}
             value={privateKey}
             onChange={(e) => { setPrivateKey(e.target.value); setError(''); }}
+            autoComplete="off"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
           />
         </Field>
       </div>

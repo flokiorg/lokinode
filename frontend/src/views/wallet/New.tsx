@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { MnemonicAlert } from '@/views/wallet/MnemonicAlert';
 import { ConfirmButton } from '@/components/ConfirmButton/ConfirmButton';
 import { useTranslation } from '@/i18n/context';
@@ -11,6 +12,7 @@ import { Input } from '@/components/ui/input';
 function New() {
   const { t } = useTranslation();
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
+  const [showPassphrase, setShowPassphrase] = useState(false);
   const [phase, setPhase] = useState<'phrase' | 'words'>('phrase');
   const { createPassphrase, setCreatePassphrase, genSeed, initWallet, pwd, createMnemonic, showCreateMnemonic, setShowMnemonicDialog, confirmLoading, setConfirmLoading } = useWalletCreateStore();
   const navigate = useNavigate();
@@ -59,22 +61,42 @@ function New() {
 
           <div className={`flex flex-col gap-[16px] w-full transition-opacity ${confirmLoading ? 'opacity-50 pointer-events-none' : ''}`}>
             <Field label={t('wallet.new.seed_pwd')}>
-              <Input
-                type="password"
-                placeholder={t('wallet.new.seed_pwd_ph')}
-                value={createPassphrase}
-                onChange={(e) => setCreatePassphrase(e.target.value)}
-                className={inputClass}
-              />
+              <div className="relative">
+                <Input
+                  type={showPassphrase ? 'text' : 'password'}
+                  placeholder={t('wallet.new.seed_pwd_ph')}
+                  value={createPassphrase}
+                  onChange={(e) => setCreatePassphrase(e.target.value)}
+                  className={`${inputClass} pr-[44px]`}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassphrase(v => !v)}
+                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                >
+                  {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
+                </button>
+              </div>
             </Field>
             <Field label={t('wallet.new.confirm_pwd')}>
-              <Input
-                type="password"
-                placeholder={t('wallet.new.confirm_pwd_ph')}
-                value={confirmPassphrase}
-                onChange={(e) => setConfirmPassphrase(e.target.value)}
-                className={inputClass}
-              />
+              <div className="relative">
+                <Input
+                  type={showPassphrase ? 'text' : 'password'}
+                  placeholder={t('wallet.new.confirm_pwd_ph')}
+                  value={confirmPassphrase}
+                  onChange={(e) => setConfirmPassphrase(e.target.value)}
+                  className={`${inputClass} pr-[44px]`}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPassphrase(v => !v)}
+                  className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+                >
+                  {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
+                </button>
+              </div>
             </Field>
           </div>
 

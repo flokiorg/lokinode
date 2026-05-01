@@ -1,5 +1,6 @@
 import { Field } from "@/components/ui/field";
 import { useState } from "react";
+import { Eye, EyeOff } from 'lucide-react';
 import { useWalletCreateStore } from '@/store/walletCreate';
 import { useToast } from '@/hooks/useToast';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +12,7 @@ function Import() {
   const { t } = useTranslation();
   const [mnemonic, setMnemonic] = useState('');
   const [passphrase, setPassphrase] = useState('');
+  const [showPassphrase, setShowPassphrase] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { initWallet, pwd, confirmLoading, setConfirmLoading } = useWalletCreateStore();
@@ -46,17 +48,29 @@ function Import() {
             placeholder={t('wallet.import.recovery_ph')}
             value={mnemonic}
             onChange={(e) => { setMnemonic(e.target.value); setError(''); }}
+            autoComplete="off"
+            spellCheck={false}
           />
         </Field>
 
         <Field label={t('wallet.import.seed_pwd')}>
-          <Input
-            type="password"
-            placeholder={t('wallet.import.seed_pwd_ph')}
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-            className={inputClass}
-          />
+          <div className="relative">
+            <Input
+              type={showPassphrase ? 'text' : 'password'}
+              placeholder={t('wallet.import.seed_pwd_ph')}
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              className={`${inputClass} pr-[44px]`}
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPassphrase(v => !v)}
+              className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors focus:outline-none"
+            >
+              {showPassphrase ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
+            </button>
+          </div>
         </Field>
       </div>
 
