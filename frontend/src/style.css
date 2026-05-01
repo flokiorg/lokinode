@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+::selection {
+  background-color: #DA9526;
+  color: #000;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Regular';
+  src: url('../public/fonts/SpaceGrotesk-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Medium';
+  src: url('../public/fonts/SpaceGrotesk-Medium.ttf') format('truetype'),
+  url('../public/fonts/SpaceGrotesk-Bold.ttf') format('truetype');
+  font-weight: 500;  /* 只为 Medium 版本 */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Bold';
+  src: url('../public/fonts/SpaceGrotesk-Bold.ttf') format('truetype');
+}
+
+body {
+  font-family: 'Space Grotesk Regular', sans-serif;
+  background-color: #121212;
+  color: #f9f9f9;
+  overscroll-behavior: none;
+}
+
+html {
+  background-color: #121212;
+  color: #f9f9f9;
+  font-family: 'Space Grotesk', sans-serif;
+  overscroll-behavior: none;
+}
+
+
+/*body {*/
+/*  margin: 0;*/
+/*  color: rgb(17, 18, 19);*/
+/*  font-family: 'Roboto', sans-serif;*/
+/*  !*font-family: "CustomFont", sans-serif, SpaceGrotesk, SpaceGrotesk;;*!*/
+/*}*/
+
+@layer base {
+  :root {
+    --background: 240 2% 8%; /* #141414 - Matching .dark */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 2% 8%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 50%;
+  }
+}
+
+.tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+.tooltip:hover::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  width: 200px;
+  /*height: 200px;*/
+  white-space: pre-wrap;
+  top: 120%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px;
+  background-color: #333;
+  color: #fff;
+  border-radius: 4px;
+  z-index: 1;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide number input arrows (spinners) */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}

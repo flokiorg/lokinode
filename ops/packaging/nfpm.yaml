@@ -1,0 +1,42 @@
+name: "lokinode"
+arch: "${GOARCH}"
+platform: "linux"
+version: "${TAG}"
+section: "default"
+priority: "extra"
+maintainer: "The Flokicoin Developers <team@flokicoin.org>"
+description: |
+  Lokinode - Flokicoin Node Manager.
+  Run and manage a Flokicoin full node from your desktop.
+vendor: "Flokiorg"
+homepage: "https://flokicoin.org"
+license: "MIT"
+
+contents:
+  # Desktop Binary
+  - src: "ops/bin/${BINARY_NAME}"
+    dst: "/usr/bin/lokinode"
+    type: "tree"
+    file_info:
+      mode: 0755
+
+  # Desktop Entry & Icon
+  - src: "build/AppIcon.png"
+    dst: "/usr/share/icons/hicolor/256x256/apps/lokinode.png"
+
+  - src: "ops/packaging/lokinode.desktop"
+    dst: "/usr/share/applications/lokinode.desktop"
+
+overrides:
+  deb:
+    depends:
+      - libgtk-3-0
+      - ${LIBWEBKIT}
+    recommends:
+      - libappindicator3-1
+  rpm:
+    depends:
+      - gtk3
+      - ${LIBWEBKIT_RPM}
+    recommends:
+      - libappindicator-gtk3

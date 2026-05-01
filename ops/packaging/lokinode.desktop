@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Lokinode
+Comment=Flokicoin Lightning Node Manager
+Exec=lokinode
+Icon=lokinode
+Categories=Utility;Network;Finance;
+Terminal=false

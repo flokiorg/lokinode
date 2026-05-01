@@ -1,0 +1,65 @@
+name: Linux Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux (${{ matrix.arch }})
+    runs-on: [self-hosted, linux]
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    permissions:
+      contents: read
+    steps:
+      - name: Pre-Checkout Cleanup
+        run: sudo chown -R $USER:$USER . || true
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Read Version
+        id: version
+        shell: bash
+        run: |
+          if [ ! -f VERSION ]; then
+            echo "Error: VERSION file not found"
+            exit 1
+          fi
+          TAG=$(cat VERSION | tr -d '[:space:]')
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          BUILD_TAG="${TAG}-${COMMIT_HASH}"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "BUILD_TAG=$BUILD_TAG" >> $GITHUB_ENV
+
+      - name: Build Builder Image
+        run: |
+          sudo docker build \
+            -t lokinode-builder-${{ matrix.arch }}:latest \
+            -f ops/docker/build-linux-${{ matrix.arch }}.Dockerfile .
+
+      - name: Make Scripts Executable
+        run: chmod +x ops/scripts/*.sh
+
+      - name: Run Build Script in Docker
+        run: |
+          sudo docker run --rm \
+            -v ${{ github.workspace }}:/build \
+            -e TAG=${{ env.TAG }} \
+            -e BUILD_TAG=${{ env.BUILD_TAG }} \
+            lokinode-builder-${{ matrix.arch }}:latest \
+            /bin/bash /build/ops/scripts/build-ci-linux.sh
+
+      - name: Fix Permissions
+        if: always()
+        run: sudo chown -R $USER:$USER ${{ github.workspace }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-linux-${{ matrix.arch }}-${{ env.TAG }}
+          path: ops/bin/*
+          if-no-files-found: error

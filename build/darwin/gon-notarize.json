@@ -1,0 +1,16 @@
+{
+  "notarize": [{
+    "path": "./build/bin/Lokinode.pkg",
+    "bundle_id": "org.flokicoin.lokinode",
+    "staple": true
+  },{
+    "path": "./build/bin/Lokinode.app.zip",
+    "bundle_id": "org.flokicoin.lokinode",
+    "staple": false
+  }],
+  "apple_id": {
+    "username": "",
+    "password": "",
+    "provider": ""
+  }
+}

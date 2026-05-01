@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "lokinode",
+  "outputfilename": "lokinode",
+  "frontend:install": "pnpm install",
+  "frontend:build": "pnpm run build",
+  "frontend:dev:watcher": "pnpm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "ohstr",
+    "email": ""
+  },
+  "info": {
+    "companyName": "flokicoin",
+    "productName": "Lokinode",
+    "productVersion": "0.1.0",
+    "copyright": "",
+    "comments": "Lokinode desktop for flokicoin"
+  }
+}
