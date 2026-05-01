@@ -49,7 +49,7 @@ function Build-Desktop {
         Remove-Item -Recurse -Force 'build/bin'
     }
 
-    wails build -platform $WailsPlatform -webview2 embed -tags wails -ldflags '-s -w' -nsis -o "${Basename}.exe" -clean
+    wails build -platform $WailsPlatform -webview2 embed -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -ldflags '-s -w' -nsis -o "${Basename}.exe" -clean
 
     if ($LASTEXITCODE -ne 0) { throw 'wails build failed' }
 

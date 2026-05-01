@@ -61,7 +61,7 @@ rm -f ops/bin/*.AppImage*
 
 # Wails Build (direct go build with wails tag — avoids wails CLI env issues in Docker)
 echo "--- Building Desktop Binary ---"
-go build -trimpath -tags wails -ldflags "-s -w" \
+go build -trimpath -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -ldflags "-s -w" \
     -o "build/bin/${BASENAME}" .
 
 # Packaging (AppImage)

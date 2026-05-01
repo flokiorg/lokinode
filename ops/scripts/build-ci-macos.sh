@@ -50,7 +50,7 @@ build_macos_desktop() {
 
     echo "Building Desktop AMD64 slice..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" \
-    wails build -platform "darwin/amd64" -tags wails -trimpath \
+    wails build -platform "darwin/amd64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -trimpath \
             -ldflags "-s -w" \
             -o "${BASENAME}-amd64" -clean
 
@@ -60,7 +60,7 @@ build_macos_desktop() {
 
     echo "Building Desktop ARM64 slice..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="clang -arch arm64" \
-    wails build -platform "darwin/arm64" -tags wails -trimpath \
+    wails build -platform "darwin/arm64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -trimpath \
             -ldflags "-s -w" \
             -o "${BASENAME}-arm64"
 
