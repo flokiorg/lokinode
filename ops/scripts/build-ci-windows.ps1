@@ -35,7 +35,7 @@ try {
 # -----------------------------------------------------------------------------
 Write-Host "--- Building Desktop App ---"
 
-if (-not (Test-Path "build/AppIcon.png")) { Write-Warning "build/AppIcon.png not found — Windows icon may be missing" }
+if (-not (Test-Path "build/AppIcon.png")) { Write-Warning "build/AppIcon.png not found - Windows icon may be missing" }
 if (Test-Path "ops/windows") { Copy-Item -Recurse "ops/windows" "build/" -Force }
 
 function Build-Desktop {
