@@ -26,7 +26,7 @@ function LanguageDropdown() {
     <div className="relative pointer-events-auto flex items-center justify-center" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center"
+          className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
       >
         <Globe size={16} strokeWidth={1.8} />
       </button>
@@ -38,7 +38,7 @@ function LanguageDropdown() {
               key={l}
               onClick={() => { setLang(l); setOpen(false); }}
               className={`w-full text-left px-[12px] py-[8px] text-[12px] font-label transition-colors hover:bg-white/[0.04] ${
-                lang === l ? 'text-[#DA9526]' : 'text-gray-400'
+                lang === l ? 'text-[#DA9526]' : 'text-gray-300'
               }`}
             >
               {LANGUAGES[l]}
@@ -69,11 +69,11 @@ export const Header = () => {
       />
       <div className="ml-auto flex items-center gap-[12px] pt-[14px] pointer-events-auto">
         {info?.version && (
-          <span className="text-gray-600 text-[10px] font-mono">{info.version}</span>
+          <span className="text-gray-400 text-[10px] font-mono">{info.version}</span>
         )}
         <LanguageDropdown />
         <button
-          className="text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center"
+          className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
           onClick={() => BrowserOpenURL('https://docs.flokicoin.org/wallets/lokinode')}
           title={t('header.help')}
         >
@@ -81,7 +81,7 @@ export const Header = () => {
         </button>
         {(isSettingsPage || nodeActive) && (
           <button
-            className="text-gray-500 hover:text-gray-300 transition-colors flex items-center justify-center"
+            className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
             onClick={() => navigate('/settings')}
             title={t('header.settings')}
           >

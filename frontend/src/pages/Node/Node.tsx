@@ -293,8 +293,8 @@ function Node() {
   };
 
   const phaseConfig = {
-    locked:     { label: t('node.status.locked'),      sub: t('node.status.sub.locked'),      glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-500 text-gray-400',   iconColor: '#9ca3af' },
-    locking:    { label: t('node.status.locking_wallet'), sub: t('node.status.sub.locking'),  glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-500 text-gray-400',   iconColor: '#9ca3af' },
+    locked:     { label: t('node.status.locked'),      sub: t('node.status.sub.locked'),      glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
+    locking:    { label: t('node.status.locking_wallet'), sub: t('node.status.sub.locking'),  glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
     syncing:    { label: syncingLabel,                  sub: syncingSub[state] ?? t('node.sync.default'), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     restarting: { label: t('node.status.restarting'),  sub: t('node.status.sub.restarting'),  glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     active:     { label: t('node.status.active'),       sub: formatUptime(startTime),           glowColor: 'rgba(218,149,38,0.28)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
@@ -339,11 +339,11 @@ function Node() {
     return (
       <div className="flex flex-col h-full pt-[116px] overflow-hidden">
         <div className="px-[20px] pt-[20px] pb-[16px] border-b border-white/[0.04]">
-          <p className="text-gray-500 text-[11px] font-label uppercase tracking-[0.08em] mb-[4px]">{t('node.balance')}</p>
+          <p className="text-gray-400 text-[11px] font-label uppercase tracking-[0.08em] mb-[4px]">{t('node.balance')}</p>
           {balance?.ready ? (
             <div className="flex items-baseline gap-[8px]">
               <span className="text-white text-[28px] font-semibold font-headline tabular-nums">{formatFLC(balance.total)}</span>
-              <span className="text-gray-500 text-[14px] font-label">FLC</span>
+              <span className="text-gray-400 text-[14px] font-label">FLC</span>
             </div>
           ) : (
             <div className="flex items-baseline gap-[8px]">
@@ -361,7 +361,7 @@ function Node() {
         <div className="flex border-b border-white/[0.04]">
           {TABS.map(entry => (
             <button key={entry.key} onClick={() => setTab(entry.key)}
-              className={`flex-1 py-[10px] text-[12px] font-label tracking-wide transition-colors ${tab === entry.key ? 'text-[#DA9526] border-b-2 border-[#DA9526]' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`flex-1 py-[10px] text-[12px] font-label tracking-wide transition-colors ${tab === entry.key ? 'text-[#DA9526] border-b-2 border-[#DA9526]' : 'text-gray-400 hover:text-gray-200'}`}
             >{entry.label}</button>
           ))}
         </div>
@@ -440,9 +440,9 @@ function Node() {
               >
                 {!isLoading && (
                   isDown ? (
-                    <RefreshCw size={38} strokeWidth={1.8} className="text-gray-400 group-hover:text-[#DA9526] transition-colors" />
+                    <RefreshCw size={38} strokeWidth={1.8} className="text-gray-300 group-hover:text-[#DA9526] transition-colors" />
                   ) : (
-                    <Lock size={38} strokeWidth={1.8} className="text-gray-400 group-hover:text-[#DA9526] transition-colors" />
+                    <Lock size={38} strokeWidth={1.8} className="text-gray-300 group-hover:text-[#DA9526] transition-colors" />
                   )
                 )}
               </button>
@@ -452,7 +452,7 @@ function Node() {
               <h1 className="text-white text-[24px] font-bold font-headline tracking-tight">
                 {isLocking ? t('node.status.locking_wallet') : phaseConfig.label}
               </h1>
-              <p className="text-gray-500 text-[14px] font-body mt-[4px]">
+              <p className="text-gray-400 text-[14px] font-body mt-[4px]">
                 {isLocking ? t('node.status.sub.locking') : phaseConfig.sub}
               </p>
             </div>
@@ -468,7 +468,7 @@ function Node() {
             )}
             {(!isDown || restarting) && syncing && <SyncProgress info={info} />}
             {(!isDown || restarting) && !syncing && info?.blockHeight ? (
-              <p className="text-gray-600 text-[11px] font-mono mt-[4px]">{t('overview.block')} {info.blockHeight.toLocaleString()}</p>
+              <p className="text-gray-500 text-[11px] font-mono mt-[4px]">{t('overview.block')} {info.blockHeight.toLocaleString()}</p>
             ) : null}
           </motion.div>
         </div>
@@ -504,13 +504,13 @@ function Node() {
             >
               {/* Drag handle */}
               <div className="flex justify-center items-center py-[12px] shrink-0 select-none cursor-grab active:cursor-grabbing">
-                <div className="w-[40px] h-[4px] bg-gray-600 rounded-full" />
+                <div className="w-[40px] h-[4px] bg-gray-500 rounded-full" />
               </div>
 
               <div className="px-[24px] pb-[32px] flex flex-col gap-[20px]">
                 <div>
                   <p className="text-white text-[18px] font-bold font-headline mb-[2px]">{t('unlock.title')}</p>
-                  <p className="text-gray-500 text-[13px] font-body">{t('unlock.subtitle')}</p>
+                  <p className="text-gray-400 text-[13px] font-body">{t('unlock.subtitle')}</p>
                 </div>
 
                 {/* Stop pointer events from propagating to the drag sheet so clicks on
@@ -528,7 +528,7 @@ function Node() {
                       disabled={isUnlocking}
                       onChange={e => { setPassword(e.target.value); setPwdError(false); }}
                       onKeyDown={e => { if (e.key === 'Enter' && !isUnlocking) handleUnlock(); }}
-                      className={`bg-[#121212] border-white/[0.08] text-white h-[52px] pl-[16px] pr-[48px] rounded-xl focus:border-[#DA9526]/60 transition-colors placeholder:text-gray-600 ${pwdError ? 'border-red-500 focus:border-red-500' : ''}`}
+                      className={`bg-[#121212] border-white/[0.08] text-white h-[52px] pl-[16px] pr-[48px] rounded-xl focus:border-[#DA9526]/60 transition-colors placeholder:text-gray-400 ${pwdError ? 'border-red-500 focus:border-red-500' : ''}`}
                     />
                     {!isUnlocking && (
                       <button
@@ -598,15 +598,15 @@ function SyncProgress({ info }: { info: any }) {
       )}
       {cur > 0 && (
         <div className="flex items-center gap-[6px]">
-          <span className="text-gray-600 text-[10px] font-label uppercase tracking-[0.08em]">{t('overview.block')}</span>
+          <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{t('overview.block')}</span>
           <span className="text-gray-400 text-[11px] font-mono">
             {cur.toLocaleString()}
-            {tip > 0 ? <span className="text-gray-600"> / {tip.toLocaleString()}</span> : null}
+            {tip > 0 ? <span className="text-gray-400"> / {tip.toLocaleString()}</span> : null}
           </span>
         </div>
       )}
       {relativeTime(ts) && (
-        <span className="text-gray-600 text-[10px] font-mono">
+        <span className="text-gray-400 text-[10px] font-mono">
           {t('overview.last_block', { time: relativeTime(ts) })}
         </span>
       )}
@@ -713,7 +713,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   function copy() { navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }
   return (
-    <button onClick={copy} className="text-gray-500 hover:text-[#DA9526] transition-colors ml-[6px] cursor-pointer" title={t('common.copy')}>
+    <button onClick={copy} className="text-gray-400 hover:text-[#DA9526] transition-colors ml-[6px] cursor-pointer" title={t('common.copy')}>
       {copied ? <Check size={13} strokeWidth={2.5} className="text-[#DA9526]" /> : <Copy size={13} strokeWidth={2} />}
     </button>
   );

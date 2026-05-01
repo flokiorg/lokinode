@@ -367,7 +367,7 @@ function Main() {
                       onChange={e => { setTempAlias(e.target.value); setAliasError(undefined); }}
                       onKeyDown={e => e.key === 'Enter' && handleSaveAlias()}
                       onBlur={() => !aliasLoading && !aliasError && handleSaveAlias()}
-                      className="bg-transparent border-b border-white/20 text-white text-[32px] font-bold font-headline text-center focus:outline-none focus:border-cyan-500/50 w-[300px] cursor-pointer focus:cursor-text disabled:opacity-50 placeholder:opacity-30"
+                      className="bg-transparent border-b border-white/20 text-white text-[32px] font-bold font-headline text-center focus:outline-none focus:border-cyan-500/50 w-[300px] cursor-pointer focus:cursor-text disabled:opacity-50 placeholder:text-gray-600"
                     />
                     {(isAliasDirty || aliasLoading || aliasSuccess) && (
                       <button 
@@ -403,7 +403,7 @@ function Main() {
                   <h1 className="text-white text-[32px] font-bold font-headline">{displayAlias}</h1>
                   <button
                     onClick={handleEditAlias}
-                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/5 rounded-full transition-all text-gray-500 hover:text-white"
+                    className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/5 rounded-full transition-all text-gray-400 hover:text-white"
                     title={t('main.configure')}
                   >
                     <Edit2 size={16} />
@@ -420,7 +420,7 @@ function Main() {
               </div>
             </div>
 
-            <p className="text-gray-500 text-[11px] font-body mt-[10px] tracking-wide">
+            <p className="text-gray-400 text-[11px] font-body mt-[10px] tracking-wide">
               {autoStarting ? t('main.power_hint_starting') : t('main.power_hint')}
             </p>
           </div>
@@ -463,7 +463,7 @@ function Main() {
             </div>
             <div className="flex flex-col gap-[2px]">
               <span className="text-white text-[15px] font-semibold font-headline">{t('main.create_new')}</span>
-              <span className="text-gray-500 text-[12px] font-body">{t('main.create_new_sub')}</span>
+              <span className="text-gray-400 text-[12px] font-body">{t('main.create_new_sub')}</span>
             </div>
           </button>
 
@@ -479,7 +479,7 @@ function Main() {
             </div>
             <div className="flex flex-col gap-[2px]">
               <span className="text-white text-[15px] font-semibold font-headline">{t('main.open_existing')}</span>
-              <span className="text-gray-500 text-[12px] font-body">{t('main.open_existing_sub')}</span>
+              <span className="text-gray-400 text-[12px] font-body">{t('main.open_existing_sub')}</span>
             </div>
           </button>
         </div>
@@ -516,7 +516,7 @@ function Main() {
             >
               {/* Drag handle */}
               <div className="flex justify-center items-center py-[12px] shrink-0 select-none cursor-grab active:cursor-grabbing">
-                <div className="w-[40px] h-[4px] bg-gray-600 rounded-full" />
+                <div className="w-[40px] h-[4px] bg-gray-500 rounded-full" />
               </div>
 
               {/* Stop pointer events from propagating to the drag sheet so
@@ -527,7 +527,7 @@ function Main() {
               >
                 <div>
                   <p className="text-white text-[20px] font-bold font-headline mb-[4px]">Open Existing Node</p>
-                  <p className="text-gray-500 text-[13px] font-body">Select a previously managed node or browse your filesystem.</p>
+                  <p className="text-gray-400 text-[13px] font-body">Select a previously managed node or browse your filesystem.</p>
                 </div>
 
                 <div className="flex flex-col gap-[12px]">
@@ -544,9 +544,9 @@ function Main() {
                             <span className="px-[6px] py-[1px] rounded bg-[#DA9526]/20 text-[#DA9526] text-[9px] font-bold uppercase tracking-wider">Current</span>
                           )}
                         </div>
-                        <span className="text-gray-500 text-[11px] font-mono truncate w-full">{node.dir}</span>
+                        <span className="text-gray-400 text-[11px] font-mono truncate w-full">{node.dir}</span>
                       </div>
-                      <div className="w-[36px] h-[36px] rounded-full bg-white/[0.04] flex items-center justify-center text-gray-500 group-hover:text-[#DA9526] group-hover:bg-[#DA9526]/10 transition-all">
+                      <div className="w-[36px] h-[36px] rounded-full bg-white/[0.04] flex items-center justify-center text-gray-400 group-hover:text-[#DA9526] group-hover:bg-[#DA9526]/10 transition-all">
                         <Power size={18} />
                       </div>
                     </button>
@@ -556,7 +556,7 @@ function Main() {
                 <div className="flex flex-col gap-[12px] pt-[8px]">
                   <div className="flex items-center gap-[12px]">
                     <div className="h-[1px] flex-1 bg-white/[0.06]" />
-                    <span className="text-gray-600 text-[10px] font-label uppercase tracking-widest">or</span>
+                    <span className="text-gray-500 text-[10px] font-label uppercase tracking-widest">or</span>
                     <div className="h-[1px] flex-1 bg-white/[0.06]" />
                   </div>
                   

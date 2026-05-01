@@ -58,7 +58,7 @@ export function TransitionOverlay() {
           {label}
         </h2>
         {sublabel && (
-          <p className="text-gray-500 text-[13px] leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300">
+          <p className="text-gray-400 text-[13px] leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300">
             {sublabel}
           </p>
         )}

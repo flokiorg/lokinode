@@ -69,13 +69,20 @@ export interface SendResponse {
 }
 
 export interface EstimateFeeResponse {
-  satPerVbyte: number;
+  lokiPerVbyte: number;
   totalFee: number;
+}
+
+export interface OutputLock {
+  id: string;
+  txidBytes: string;
+  outputIndex: number;
 }
 
 export interface FundPsbtResponse {
   psbt: string;
   totalFee: number;
+  locks: OutputLock[];
 }
 
 export interface FinalizePsbtResponse {

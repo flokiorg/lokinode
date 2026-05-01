@@ -38,7 +38,7 @@ export default function Settings() {
       <div className="flex items-center justify-between px-[20px] py-[16px] border-b border-white/[0.04]">
         <button
           onClick={() => navigate(-1)}
-          className="text-gray-500 hover:text-gray-300 transition-colors"
+          className="text-gray-400 hover:text-gray-200 transition-colors"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <polyline points="15 18 9 12 15 6"/>
@@ -57,7 +57,7 @@ export default function Settings() {
             className={`flex-1 py-[10px] text-[11px] font-label tracking-wide transition-colors ${
               tab === t.key
                 ? 'text-[#DA9526] border-b-2 border-[#DA9526]'
-                : 'text-gray-500 hover:text-gray-300'
+                : 'text-gray-400 hover:text-gray-200'
             }`}
           >
             {t.label}
@@ -125,7 +125,7 @@ export default function Settings() {
 function AboutRow({ label, value, last, badge }: { label: string; value: string; last?: boolean; badge?: string }) {
   return (
     <div className={`flex items-center justify-between px-[16px] py-[12px] ${last ? '' : 'border-b border-white/[0.04]'}`}>
-      <span className="text-gray-500 text-[11px] font-label uppercase tracking-[0.08em]">{label}</span>
+      <span className="text-gray-400 text-[11px] font-label uppercase tracking-[0.08em]">{label}</span>
       <div className="flex items-center gap-[8px]">
         <span className="text-gray-300 text-[12px] font-mono">{value}</span>
         {badge && (
@@ -147,9 +147,9 @@ function LinkRow({ label, subtitle, url, last }: { label: string; subtitle?: str
     >
       <div className="flex flex-col items-start gap-[2px]">
         <span className="text-gray-200 text-[13px] font-semibold font-label group-hover:text-white transition-colors">{label}</span>
-        {subtitle && <span className="text-gray-600 text-[11px] font-label">{subtitle}</span>}
+        {subtitle && <span className="text-gray-500 text-[11px] font-label">{subtitle}</span>}
       </div>
-      <ArrowUpRight size={15} className="text-gray-600 group-hover:text-[#DA9526] transition-colors flex-shrink-0" />
+      <ArrowUpRight size={15} className="text-gray-500 group-hover:text-[#DA9526] transition-colors flex-shrink-0" />
     </button>
   );
 }

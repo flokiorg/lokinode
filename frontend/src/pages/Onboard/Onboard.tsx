@@ -322,7 +322,7 @@ function Onboard() {
   }
 
   // ── UI classes ────────────────────────────────────────────────────────────
-  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-600 focus:border-[#DA9526]/60 focus:ring-0";
+  const inputClass = "bg-[#1c1c1e] border-white/[0.06] text-white placeholder:text-gray-400 focus:border-[#DA9526]/60 focus:ring-0";
 
   const progressDots = order.map((s, i) => (
     <span
@@ -363,7 +363,7 @@ function Onboard() {
       <div className="relative z-20 flex items-center justify-between px-[20px] pt-[18px] pb-[12px]">
         <button
           onClick={goBack}
-          className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors"
+          className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
           aria-label={t('onboard.back')}
         >
           <ArrowLeft size={16} strokeWidth={1.8} />
@@ -371,7 +371,7 @@ function Onboard() {
         <div className="flex items-center gap-[6px]">{progressDots}</div>
         <button
           onClick={() => navigate('/')}
-          className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors"
+          className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
           aria-label={t('onboard.cancel')}
         >
           <X size={16} strokeWidth={1.8} />
@@ -389,13 +389,13 @@ function Onboard() {
             className="flex-1 flex flex-col overflow-hidden"
           >
             <div className="px-[24px] pt-[8px] pb-[4px] shrink-0">
-              <p className="text-gray-500 text-[10px] font-label uppercase tracking-[0.12em]">
+              <p className="text-gray-400 text-[10px] font-label uppercase tracking-[0.12em]">
                 {t('onboard.step_x_of_y', { x: stepIndex + 1, y: totalSteps })}
               </p>
               <h1 className="text-white text-[22px] font-bold font-headline tracking-tight mt-[6px]">
                 {stepTitle}
               </h1>
-              <p className="text-gray-500 text-[13px] font-body mt-[6px] leading-[1.4]">
+              <p className="text-gray-400 text-[13px] font-body mt-[6px] leading-[1.4]">
                 {stepDesc}
               </p>
             </div>
@@ -428,7 +428,7 @@ function Onboard() {
                         onClick={chooseNodeDir}
                         className="px-[12px] h-full flex items-center border-l border-white/[0.06] hover:bg-white/5 transition-colors py-[10px]"
                       >
-                        <FolderOpen size={14} className="text-gray-500" />
+                        <FolderOpen size={14} className="text-gray-400" />
                       </button>
                     </div>
                   </Field>
@@ -436,7 +436,7 @@ function Onboard() {
                   <button
                     type="button"
                     onClick={() => setShowAdvanced(v => !v)}
-                    className="flex items-center gap-[8px] text-gray-500 hover:text-gray-300 transition-colors text-[12px] font-label uppercase tracking-[0.08em] mt-[4px]"
+                    className="flex items-center gap-[8px] text-gray-400 hover:text-gray-200 transition-colors text-[12px] font-label uppercase tracking-[0.08em] mt-[4px]"
                   >
                     <ChevronDown size={14} className={`transition-transform ${showAdvanced ? 'rotate-0' : '-rotate-90'}`} />
                     {t('onboard.node.advanced')}
@@ -494,7 +494,7 @@ function Onboard() {
                       <button
                         type="button"
                         onClick={() => setShowPwd(v => !v)}
-                        className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                        className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
                       >
                         {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
                       </button>
@@ -513,7 +513,7 @@ function Onboard() {
                       <button
                         type="button"
                         onClick={() => setShowPwd(v => !v)}
-                        className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                        className="absolute right-[12px] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
                       >
                         {showPwd ? <EyeOff size={14} strokeWidth={1.8} /> : <Eye size={14} strokeWidth={1.8} />}
                       </button>
@@ -521,7 +521,7 @@ function Onboard() {
                   </Field>
                   <div className="flex items-start gap-[10px] mt-[4px] px-[2px]">
                     <AlertTriangle size={14} strokeWidth={1.8} className="text-[#DA9526] shrink-0 mt-[2px]" />
-                    <p className="text-gray-500 text-[11px] font-body leading-[1.5]">
+                    <p className="text-gray-400 text-[11px] font-body leading-[1.5]">
                       {t('onboard.password.warn')}
                     </p>
                   </div>
@@ -549,7 +549,7 @@ function Onboard() {
                     <>
                       <Field label={t('onboard.restore.mnemonic_label')} errorText={restoreError || undefined}>
                         <textarea
-                          className={`w-full bg-[#1c1c1e] border rounded-md p-3 text-white text-[13px] placeholder:text-gray-600 focus:border-[#DA9526]/60 outline-none min-h-[120px] resize-none transition-colors font-mono ${restoreError ? 'border-red-500' : 'border-white/[0.06]'}`}
+                          className={`w-full bg-[#1c1c1e] border rounded-md p-3 text-white text-[13px] placeholder:text-gray-400 focus:border-[#DA9526]/60 outline-none min-h-[120px] resize-none transition-colors font-mono ${restoreError ? 'border-red-500' : 'border-white/[0.06]'}`}
                           placeholder={t('wallet.import.recovery_ph')}
                           value={restoreMnemonic}
                           onChange={e => { setRestoreMnemonic(e.target.value); setRestoreError(''); }}
@@ -568,7 +568,7 @@ function Onboard() {
                   ) : (
                     <Field label={t('onboard.restore.hex_label')} errorText={restoreError || undefined}>
                       <textarea
-                        className={`w-full bg-[#1c1c1e] border rounded-md p-3 text-white text-[13px] placeholder:text-gray-600 focus:border-[#DA9526]/60 outline-none min-h-[120px] resize-none transition-colors font-mono break-all ${restoreError ? 'border-red-500' : 'border-white/[0.06]'}`}
+                        className={`w-full bg-[#1c1c1e] border rounded-md p-3 text-white text-[13px] placeholder:text-gray-400 focus:border-[#DA9526]/60 outline-none min-h-[120px] resize-none transition-colors font-mono break-all ${restoreError ? 'border-red-500' : 'border-white/[0.06]'}`}
                         placeholder="hex..."
                         value={restoreHex}
                         onChange={e => { setRestoreHex(e.target.value); setRestoreError(''); }}
@@ -584,7 +584,7 @@ function Onboard() {
                     <div className="grid grid-cols-3 gap-x-[12px] gap-y-[10px]">
                       {generatedWords.map((word, i) => (
                         <div key={i} className="flex items-center gap-[6px]">
-                          <span className="text-gray-600 text-[10px] w-[16px] text-right shrink-0">{i + 1}.</span>
+                          <span className="text-gray-400 text-[10px] w-[16px] text-right shrink-0">{i + 1}.</span>
                           <span className="text-white text-[13px] font-medium truncate">{word}</span>
                         </div>
                       ))}
@@ -592,7 +592,7 @@ function Onboard() {
                     <button
                       type="button"
                       onClick={copySeed}
-                      className="absolute top-[10px] right-[10px] w-[28px] h-[28px] rounded-full flex items-center justify-center text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors"
+                      className="absolute top-[10px] right-[10px] w-[28px] h-[28px] rounded-full flex items-center justify-center text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] transition-colors"
                       aria-label={t('common.copy')}
                     >
                       {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -601,7 +601,7 @@ function Onboard() {
 
                   <div className="flex items-start gap-[10px] mt-[14px] px-[2px]">
                     <AlertTriangle size={14} strokeWidth={1.8} className="text-[#DA9526] shrink-0 mt-[2px]" />
-                    <p className="text-gray-500 text-[11px] font-body leading-[1.5]">
+                    <p className="text-gray-400 text-[11px] font-body leading-[1.5]">
                       {t('onboard.seed.warn')}
                     </p>
                   </div>
@@ -652,7 +652,7 @@ function Onboard() {
                   <div className="w-full max-w-[340px] bg-white/[0.03] border border-white/[0.06] rounded-xl p-[14px] backdrop-blur-md">
                     <div className="flex items-center justify-between mb-[12px]">
                       <div className="flex flex-col">
-                        <span className="text-gray-500 text-[8px] font-label uppercase tracking-widest">Node Identity</span>
+                        <span className="text-gray-400 text-[8px] font-label uppercase tracking-widest">Node Identity</span>
                         <h1 className="text-white text-[18px] font-bold font-headline">{alias || t('main.default_alias')}</h1>
                       </div>
                       <div className="flex items-center gap-[6px] px-[8px] py-[3px]">
@@ -665,21 +665,21 @@ function Onboard() {
                       <div className="flex items-center gap-[8px] p-[8px] rounded-lg bg-white/[0.02] border border-white/[0.04]">
                         <ShieldCheck size={14} className="text-[#DA9526] shrink-0" />
                         <div className="flex flex-col">
-                          <span className="text-gray-500 text-[8px] uppercase tracking-wider font-semibold">Security</span>
+                          <span className="text-gray-400 text-[8px] uppercase tracking-wider font-semibold">Security</span>
                           <span className="text-white text-[10px] font-medium">{walletMode === 'create' ? 'Secured' : 'Restored'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-[8px] p-[8px] rounded-lg bg-white/[0.02] border border-white/[0.04]">
                         <Zap size={14} className="text-cyan-400 shrink-0" />
                         <div className="flex flex-col">
-                          <span className="text-gray-500 text-[8px] uppercase tracking-wider font-semibold">Network</span>
+                          <span className="text-gray-400 text-[8px] uppercase tracking-wider font-semibold">Network</span>
                           <span className="text-white text-[10px] font-medium">Mainnet</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-[12px] pt-[10px] border-t border-white/[0.05]">
-                      <div className="flex items-start gap-[8px] text-gray-500 text-[10px] font-body leading-relaxed">
+                      <div className="flex items-start gap-[8px] text-gray-400 text-[10px] font-body leading-relaxed">
                         <Sparkles size={12} className="text-[#DA9526] shrink-0 mt-[2px]" />
                         <p>{t('onboard.review.sync_warn') || "Your first launch will synchronize with the blockchain. This may take some time depending on your connection."}</p>
                       </div>
@@ -748,7 +748,7 @@ function WalletModeCard({
       </div>
       <div className="flex flex-col gap-[2px]">
         <span className="text-white text-[15px] font-semibold font-headline">{title}</span>
-        <span className="text-gray-500 text-[12px] font-body">{sub}</span>
+        <span className="text-gray-400 text-[12px] font-body">{sub}</span>
       </div>
     </button>
   );
@@ -779,7 +779,7 @@ function RestoreTab({
 function ReviewRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex flex-col gap-[4px] p-[14px] rounded-xl bg-[#1c1c1e] border border-white/[0.06]">
-      <span className="text-gray-500 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
+      <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
       <span className={`text-white text-[13px] ${mono ? 'font-mono break-all' : 'font-body'}`}>{value}</span>
     </div>
   );
