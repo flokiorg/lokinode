@@ -84,8 +84,8 @@ type FeesResponse struct {
 // SendRequest is the body of POST /api/send.
 type SendRequest struct {
 	Address     string `json:"address"`
-	Amount      int64  `json:"amount"`
-	SatPerVbyte int64  `json:"satPerVbyte"`
+	Amount        int64  `json:"amount"`
+	LokiPerVbyte int64  `json:"lokiPerVbyte"`
 }
 
 // SendResponse is returned by POST /api/send.
@@ -101,20 +101,43 @@ type EstimateFeeRequest struct {
 
 // EstimateFeeResponse is returned by POST /api/send/estimate-fee.
 type EstimateFeeResponse struct {
-	SatPerVbyte int64 `json:"satPerVbyte"`
+	LokiPerVbyte int64 `json:"lokiPerVbyte"`
 	TotalFee    int64 `json:"totalFee"`
+}
+
+// MaxSendableRequest is the body of POST /api/send/max-sendable.
+type MaxSendableRequest struct {
+	Address     string `json:"address"`
+	LokiPerVbyte int64  `json:"lokiPerVbyte"`
+}
+
+// MaxSendableResponse is returned by POST /api/send/max-sendable.
+type MaxSendableResponse struct {
+	Amount   int64 `json:"amount"`
+	TotalFee int64 `json:"totalFee"`
 }
 
 // PSBT models
 type FundPsbtRequest struct {
 	Address     string `json:"address"`
 	Amount      int64  `json:"amount"`
-	SatPerVbyte uint64 `json:"satPerVbyte"`
+	LokiPerVbyte uint64 `json:"lokiPerVbyte"`
 }
 
 type FundPsbtResponse struct {
-	Psbt     string `json:"psbt"`
-	TotalFee int64  `json:"totalFee"`
+	Psbt     string       `json:"psbt"`
+	TotalFee int64        `json:"totalFee"`
+	Locks    []OutputLock `json:"locks"`
+}
+
+type OutputLock struct {
+	ID          string `json:"id"`
+	TxidBytes   string `json:"txidBytes"`
+	OutputIndex uint32 `json:"outputIndex"`
+}
+
+type ReleasePsbtRequest struct {
+	Locks []OutputLock `json:"locks"`
 }
 
 type FinalizePsbtRequest struct {

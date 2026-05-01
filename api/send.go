@@ -6,10 +6,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/flokiorg/flnd/lnrpc"
 	"github.com/flokiorg/go-flokicoin/chainutil"
 	"github.com/flokiorg/go-flokicoin/chainutil/psbt"
-	"github.com/labstack/echo/v4"
+	"github.com/flokiorg/lokinode/daemon"
 	lokiwails "github.com/flokiorg/lokinode/wails"
+	"github.com/labstack/echo/v4"
 )
 
 func handleSend(app App) echo.HandlerFunc {
@@ -25,7 +27,7 @@ func handleSend(app App) echo.HandlerFunc {
 		if req.Address == "" || req.Amount <= 0 {
 			return apiErr(c, http.StatusBadRequest, errors.New("address and positive amount are required"))
 		}
-		txid, err := svc.SendCoins(req.Address, req.Amount, req.SatPerVbyte)
+		txid, err := svc.SendCoins(req.Address, req.Amount, req.LokiPerVbyte)
 		if err != nil {
 			// Return the gRPC error message — it is meaningful to the user
 			// (e.g. "insufficient funds", "invalid address") but strip any
@@ -46,13 +48,34 @@ func handleEstimateFee(app App) echo.HandlerFunc {
 		if err := c.Bind(&req); err != nil {
 			return apiErr(c, http.StatusBadRequest, err)
 		}
-		satPerVbyte, totalFee, err := svc.EstimateFee(req.Address, req.Amount)
+		lokiPerVbyte, totalFee, err := svc.EstimateFee(req.Address, req.Amount)
 		if err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
 		return c.JSON(http.StatusOK, EstimateFeeResponse{
-			SatPerVbyte: satPerVbyte,
+			LokiPerVbyte: lokiPerVbyte,
 			TotalFee:    totalFee,
+		})
+	}
+}
+
+func handleMaxSendable(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		svc := app.Service()
+		if svc == nil {
+			return svcErr(c)
+		}
+		var req MaxSendableRequest
+		if err := c.Bind(&req); err != nil {
+			return apiErr(c, http.StatusBadRequest, err)
+		}
+		amount, fee, err := svc.MaxSendable(req.Address, req.LokiPerVbyte)
+		if err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		return c.JSON(http.StatusOK, MaxSendableResponse{
+			Amount:   amount,
+			TotalFee: fee,
 		})
 	}
 }
@@ -87,7 +110,7 @@ func handleFundPsbt(app App) echo.HandlerFunc {
 
 		addrToAmount := map[string]int64{req.Address: req.Amount}
 		// Use 10-minute lock expiration for the review phase
-		funded, err := svc.FundPsbt(addrToAmount, req.SatPerVbyte, 600)
+		funded, err := svc.FundPsbt(addrToAmount, req.LokiPerVbyte, 600)
 		if err != nil {
 			return apiErr(c, http.StatusBadRequest, sanitizeGRPC(err))
 		}
@@ -98,9 +121,19 @@ func handleFundPsbt(app App) echo.HandlerFunc {
 		}
 
 		fee, _ := funded.Packet.GetTxFee()
+		var locks []OutputLock
+		for _, l := range funded.Locks {
+			locks = append(locks, OutputLock{
+				ID:          hex.EncodeToString(l.ID),
+				TxidBytes:   hex.EncodeToString(l.Outpoint.TxidBytes),
+				OutputIndex: l.Outpoint.OutputIndex,
+			})
+		}
+
 		return c.JSON(http.StatusOK, FundPsbtResponse{
 			Psbt:     hex.EncodeToString(buf.Bytes()),
 			TotalFee: int64(fee),
+			Locks:    locks,
 		})
 	}
 }
@@ -154,5 +187,36 @@ func handlePublishTx(app App) echo.HandlerFunc {
 			return apiErr(c, http.StatusBadRequest, sanitizeGRPC(err))
 		}
 		return c.JSON(http.StatusOK, SendResponse{TxID: tx.MsgTx().TxHash().String()})
+	}
+}
+
+func handleReleasePsbt(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		svc := app.Service()
+		if svc == nil {
+			return svcErr(c)
+		}
+		var req ReleasePsbtRequest
+		if err := c.Bind(&req); err != nil {
+			return apiErr(c, http.StatusBadRequest, err)
+		}
+
+		var locks []*daemon.OutputLock
+		for _, l := range req.Locks {
+			idBytes, _ := hex.DecodeString(l.ID)
+			txidBytes, _ := hex.DecodeString(l.TxidBytes)
+			locks = append(locks, &daemon.OutputLock{
+				ID: idBytes,
+				Outpoint: &lnrpc.OutPoint{
+					TxidBytes:   txidBytes,
+					OutputIndex: l.OutputIndex,
+				},
+			})
+		}
+
+		if err := svc.ReleaseOutputs(locks); err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		return c.JSON(http.StatusOK, map[string]bool{"success": true})
 	}
 }

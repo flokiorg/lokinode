@@ -34,9 +34,11 @@ func registerRoutes(g *echo.Group, app App) {
 	// Send
 	g.POST("/send", handleSend(app))
 	g.POST("/send/estimate-fee", handleEstimateFee(app))
+	g.POST("/send/max-sendable", handleMaxSendable(app))
 	g.POST("/send/fund-psbt", handleFundPsbt(app))
 	g.POST("/send/finalize-psbt", handleFinalizePsbt(app))
 	g.POST("/send/publish", handlePublishTx(app))
+	g.POST("/send/release-psbt", handleReleasePsbt(app))
 
 	// Fees
 	g.GET("/fees/recommended", handleRecommendedFees(app))

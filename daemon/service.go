@@ -525,23 +525,33 @@ func (s *Service) GetConnectionInfo() (*ConnectionInfo, error) {
 }
 
 // SendCoins broadcasts an on-chain transaction and returns the txid.
-func (s *Service) SendCoins(address string, amountLoki int64, satPerVbyte int64) (string, error) {
+func (s *Service) SendCoins(address string, amountLoki int64, lokiPerVbyte int64) (string, error) {
 	s.cmux.Lock()
 	defer s.cmux.Unlock()
 	if s.client == nil {
 		return "", ErrDaemonNotRunning
 	}
-	return s.client.SendCoins(address, amountLoki, satPerVbyte)
+	return s.client.SendCoins(address, amountLoki, lokiPerVbyte)
 }
 
 // EstimateFee returns the estimated fee rate and total fee for a send.
-func (s *Service) EstimateFee(address string, amountLoki int64) (satPerVbyte int64, totalFee int64, err error) {
+func (s *Service) EstimateFee(address string, amountLoki int64) (lokiPerVbyte int64, totalFee int64, err error) {
 	s.cmux.Lock()
 	defer s.cmux.Unlock()
 	if s.client == nil {
 		return 0, 0, ErrDaemonNotRunning
 	}
 	return s.client.EstimateFee(address, amountLoki)
+}
+
+// MaxSendable returns the maximum sendable amount and its fee for a given address and fee rate.
+func (s *Service) MaxSendable(address string, lokiPerVbyte int64) (amount int64, fee int64, err error) {
+	s.cmux.Lock()
+	defer s.cmux.Unlock()
+	if s.client == nil {
+		return 0, 0, ErrDaemonNotRunning
+	}
+	return s.client.MaxSendable(address, lokiPerVbyte)
 }
 
 // NewAddress generates a new on-chain address of the given type.

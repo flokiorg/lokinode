@@ -1201,7 +1201,7 @@ func (c *Client) GetLightningConfig() (*LightningConfig, error) {
 }
 
 // SendCoins broadcasts an on-chain transaction and returns the txid.
-func (c *Client) SendCoins(address string, amountLoki int64, satPerVbyte int64) (string, error) {
+func (c *Client) SendCoins(address string, amountLoki int64, lokiPerVbyte int64) (string, error) {
 	if c.isClosing() {
 		return "", ErrDaemonNotRunning
 	}
@@ -1210,7 +1210,7 @@ func (c *Client) SendCoins(address string, amountLoki int64, satPerVbyte int64) 
 	resp, err := c.lnClient.SendCoins(ctx, &lnrpc.SendCoinsRequest{
 		Addr:        address,
 		Amount:      amountLoki,
-		SatPerVbyte: uint64(satPerVbyte),
+		SatPerVbyte: uint64(lokiPerVbyte),
 	})
 	if err != nil {
 		return "", err
@@ -1218,8 +1218,8 @@ func (c *Client) SendCoins(address string, amountLoki int64, satPerVbyte int64) 
 	return resp.Txid, nil
 }
 
-// EstimateFee estimates the fee for a potential send. Returns (satPerVbyte, totalFeeSat, err).
-func (c *Client) EstimateFee(address string, amountLoki int64) (satPerVbyte int64, totalFee int64, err error) {
+// EstimateFee estimates the fee for a potential send. Returns (lokiPerVbyte, totalFeeLoki, err).
+func (c *Client) EstimateFee(address string, amountLoki int64) (lokiPerVbyte int64, totalFee int64, err error) {
 	if c.isClosing() {
 		return 0, 0, ErrDaemonNotRunning
 	}
@@ -1233,6 +1233,43 @@ func (c *Client) EstimateFee(address string, amountLoki int64) (satPerVbyte int6
 		return 0, 0, err
 	}
 	return int64(resp.SatPerVbyte), resp.FeeSat, nil
+}
+
+// MaxSendable calculates the maximum amount that can be sent to an address
+// given a fee rate, by summing all UTXOs and subtracting the estimated fee.
+func (c *Client) MaxSendable(address string, lokiPerVbyte int64) (amount int64, fee int64, err error) {
+	if c.isClosing() {
+		return 0, 0, ErrDaemonNotRunning
+	}
+	// 1. List all unspent UTXOs
+	utxos, err := c.ListUnspent(0, math.MaxInt32)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(utxos) == 0 {
+		return 0, 0, nil
+	}
+
+	var total int64
+	for _, u := range utxos {
+		total += u.AmountSat
+	}
+
+	// 2. Estimate transaction size.
+	// We assume a standard P2WPKH (Segwit) transaction for estimation.
+	// Overhead: 10.5 vB
+	// Input (P2WPKH): 68 vB each
+	// Output (P2WPKH): 31 vB each
+	// Sweep tx has exactly 1 output and len(utxos) inputs.
+	size := 11 + (len(utxos) * 68) + 31
+	fee = int64(size) * lokiPerVbyte
+
+	amount = total - fee
+	if amount < 0 {
+		return 0, total, nil
+	}
+
+	return amount, fee, nil
 }
 
 // NewAddress generates a new receiving address of the given type.

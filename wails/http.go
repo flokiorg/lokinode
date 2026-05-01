@@ -45,7 +45,7 @@ func GetBlocksTipHeight(explorerHost string) (int64, error) {
 	return strconv.ParseInt(string(body), 10, 64)
 }
 
-// GetRecommendedFees fetches the recommended fee rates (sat/vbyte) from the
+// GetRecommendedFees fetches the recommended fee rates (loki/vbyte) from the
 // block explorer. Returns zeros gracefully if the endpoint is unavailable.
 func GetRecommendedFees(explorerHost string) (fastest, halfHour, economy int64, err error) {
 	body, err := httpGet(explorerHost + "/api/v1/fees/recommended")
