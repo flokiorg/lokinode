@@ -33,6 +33,7 @@ export default function Send() {
 
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  const [isCalculatingMax, setIsCalculatingMax] = useState(false);
 
   // Load recommended fees on mount
   useEffect(() => {
@@ -180,7 +181,11 @@ export default function Send() {
 
   const amountLoki = Math.round(parseFloat(amount) * 1e8) || 0;
   const balanceLoki = balance?.confirmed || 0;
-  const canReview = address && amountLoki > 0 && amountLoki <= balanceLoki;
+  const roughFeeLoki = Math.round(roughFee * 1e8);
+  // Reserve the rough fee from the spendable balance so the Review call
+  // can never fail with "insufficient funds" purely due to fee coverage.
+  const spendableLoki = Math.max(0, balanceLoki - roughFeeLoki);
+  const canReview = address && amountLoki > 0 && amountLoki <= spendableLoki;
 
   // ── REVIEW VIEW ──
   if (psbt && totalFee !== null) {
@@ -326,6 +331,7 @@ export default function Send() {
                       toast({ variant: 'default', title: t('common.info'), description: t('send.address_first') });
                       return;
                     }
+                    setIsCalculatingMax(true);
                     try {
                       const resp = await post<{amount: number, totalFee: number}>('/api/send/max-sendable', {
                         address,
@@ -334,11 +340,21 @@ export default function Send() {
                       setAmount((resp.amount / 1e8).toString());
                     } catch (err: any) {
                       toast({ variant: 'destructive', title: t('send.errors.failed'), description: err.message });
+                    } finally {
+                      setIsCalculatingMax(false);
                     }
                   }}
-                  className="text-[#DA9526] text-[10px] font-label uppercase tracking-[0.05em] hover:underline"
+                  disabled={isCalculatingMax}
+                  className="flex items-center gap-[5px] text-[#DA9526] text-[10px] font-label uppercase tracking-[0.05em] hover:underline disabled:opacity-60 disabled:no-underline transition-opacity"
                 >
-                  {t('send.available', { amount: formatFLC(balance.confirmed) })}
+                  {isCalculatingMax ? (
+                    <>
+                      <Loader2 size={10} className="animate-spin" />
+                      <span>Calculating…</span>
+                    </>
+                  ) : (
+                    <span>{t('send.available', { amount: formatFLC(balance.confirmed) })}</span>
+                  )}
                 </button>
               )}
             </div>
@@ -347,8 +363,11 @@ export default function Send() {
                 type="number"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
+                disabled={isCalculatingMax}
                 placeholder="0.00000000"
-                className="bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-400 text-[24px] h-[64px] font-mono rounded-xl transition-all py-[16px] leading-none"
+                className={`bg-[#1c1c1e] border-white/[0.06] focus:border-[#DA9526]/50 text-white placeholder:text-gray-400 text-[24px] h-[64px] font-mono rounded-xl transition-all py-[16px] leading-none ${
+                  isCalculatingMax ? 'animate-pulse opacity-60' : ''
+                }`}
               />
               <span className="absolute right-[16px] top-1/2 -translate-y-1/2 text-gray-400 font-bold text-[14px] pointer-events-none">FLC</span>
             </div>
@@ -392,6 +411,19 @@ export default function Send() {
               })}
             </div>
           </div>
+
+          {/* Insufficient balance warning */}
+          {amountLoki > 0 && amountLoki > spendableLoki && (
+            <div className="p-[16px] bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-[12px]">
+              <AlertCircle size={16} className="text-red-400 shrink-0" />
+              <p className="text-red-400/90 text-[12px] font-body">
+                {amountLoki > balanceLoki
+                  ? 'Amount exceeds your balance'
+                  : `Amount too high — leave room for the network fee (~${roughFee.toFixed(8)} FLC)`
+                }
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="p-[16px] bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-[12px]">
