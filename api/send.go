@@ -109,8 +109,8 @@ func handleFundPsbt(app App) echo.HandlerFunc {
 		}
 
 		addrToAmount := map[string]int64{req.Address: req.Amount}
-		// Use 10-minute lock expiration for the review phase
-		funded, err := svc.FundPsbt(addrToAmount, req.LokiPerVbyte, 600)
+		// Use 90-second lock expiration for the review phase.
+		funded, err := svc.FundPsbt(addrToAmount, req.LokiPerVbyte, 90)
 		if err != nil {
 			return apiErr(c, http.StatusBadRequest, sanitizeGRPC(err))
 		}

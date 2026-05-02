@@ -1236,13 +1236,20 @@ func (c *Client) EstimateFee(address string, amountLoki int64) (lokiPerVbyte int
 }
 
 // MaxSendable calculates the maximum amount that can be sent to an address
-// given a fee rate, by summing all UTXOs and subtracting the estimated fee.
+// given a fee rate.
+//
+// It performs a real FundPsbt dry-run so the fee accounts for the actual
+// address type, number of inputs, and any change output FLND may add.
+// Locks acquired during the dry-run are released immediately after reading
+// the fee, so this call has no lasting side-effects.
 func (c *Client) MaxSendable(address string, lokiPerVbyte int64) (amount int64, fee int64, err error) {
 	if c.isClosing() {
 		return 0, 0, ErrDaemonNotRunning
 	}
-	// 1. List all unspent UTXOs
-	utxos, err := c.ListUnspent(0, math.MaxInt32)
+
+	// 1. List confirmed UTXOs to get a rough upper bound.
+	//    minConf=1 excludes unconfirmed UTXOs.
+	utxos, err := c.ListUnspent(1, math.MaxInt32)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -1255,16 +1262,60 @@ func (c *Client) MaxSendable(address string, lokiPerVbyte int64) (amount int64, 
 		total += u.AmountSat
 	}
 
-	// 2. Estimate transaction size.
-	// We assume a standard P2WPKH (Segwit) transaction for estimation.
-	// Overhead: 10.5 vB
-	// Input (P2WPKH): 68 vB each
-	// Output (P2WPKH): 31 vB each
-	// Sweep tx has exactly 1 output and len(utxos) inputs.
-	size := 11 + (len(utxos) * 68) + 31
-	fee = int64(size) * lokiPerVbyte
+	// 2. Conservative under-estimate for the dry-run seed amount.
+	//    We budget for 2 P2WPKH outputs (destination + potential change) so
+	//    FundPsbt never fails because it can't cover its own fee.
+	roughSize := 11 + (len(utxos) * 68) + 62 // 2 × 31 vB outputs
+	roughFee := int64(roughSize) * lokiPerVbyte
+	tryAmount := total - roughFee
+	if tryAmount <= 0 {
+		return 0, total, nil
+	}
 
-	amount = total - fee
+	// 3. Dry-run: fund a real PSBT with a 5-second lock so it self-expires
+	//    almost immediately even if the release call below fails.
+	funded, fundErr := c.FundPsbt(
+		map[string]int64{address: tryAmount},
+		uint64(lokiPerVbyte),
+		5,
+	)
+	if fundErr != nil {
+		// Dry-run failed (e.g. dust threshold, invalid address).
+		// Fall back to the conservative rough estimate.
+		fee = roughFee
+		amount = total - fee
+		if amount < 0 {
+			return 0, total, nil
+		}
+		return amount, fee, nil
+	}
+
+	// 4. Release the dry-run locks immediately – we only needed the fee.
+	_ = c.ReleaseOutputs(funded.Locks)
+
+	// 5. Derive max sendable from the PSBT's actual selected inputs.
+	//    Using PSBT inputs (instead of ListUnspent total) automatically
+	//    excludes any UTXOs that were locked by a previous FundPsbt call.
+	var inputTotal int64
+	for _, inp := range funded.Packet.Inputs {
+		if inp.WitnessUtxo != nil {
+			inputTotal += inp.WitnessUtxo.Value
+		}
+	}
+
+	realFee, feeErr := funded.Packet.GetTxFee()
+	if feeErr != nil || inputTotal == 0 {
+		// PSBT fee unreadable – fall back to rough estimate.
+		fee = roughFee
+		amount = total - fee
+		if amount < 0 {
+			return 0, total, nil
+		}
+		return amount, fee, nil
+	}
+
+	fee = int64(realFee)
+	amount = inputTotal - fee
 	if amount < 0 {
 		return 0, total, nil
 	}
