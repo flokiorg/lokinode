@@ -47,10 +47,17 @@ func handleLogs(app App) echo.HandlerFunc {
 // to keep the connection alive through any intermediate proxies.
 func handleLogsStream(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		c.Response().Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-		c.Response().Header().Set("Cache-Control", "no-cache")
-		c.Response().Header().Set("Connection", "keep-alive")
-		c.Response().Header().Set("X-Accel-Buffering", "no")
+		h := c.Response().Header()
+		h.Set("Content-Type", "text/event-stream; charset=utf-8")
+		// SSE requires Cache-Control: no-cache (not no-store).
+		// The global securityHeaders middleware sets no-store; override it here.
+		h.Set("Cache-Control", "no-cache")
+		h.Set("Connection", "keep-alive")
+		// Prevent proxy / WebView buffering that would delay events.
+		h.Set("X-Accel-Buffering", "no")
+		// Some WebView2 / WKWebView builds buffer chunked responses;
+		// identity encoding keeps frames visible as soon as they are flushed.
+		h.Set("Transfer-Encoding", "identity")
 		c.Response().WriteHeader(http.StatusOK)
 
 		ctx := c.Request().Context()

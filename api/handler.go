@@ -78,6 +78,10 @@ func NewHandler(app App) http.Handler {
 }
 
 // securityHeaders adds conservative security-related response headers.
+// NOTE: Content-Security-Policy is intentionally omitted here because the
+// /api/logs/stream endpoint uses Server-Sent Events (EventSource) and some
+// WebView implementations (WebKit, WebView2) refuse to stream SSE when a
+// restrictive CSP is present. Non-streaming endpoints set their own CSP.
 func securityHeaders() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -85,7 +89,6 @@ func securityHeaders() echo.MiddlewareFunc {
 			h.Set("X-Content-Type-Options", "nosniff")
 			h.Set("X-Frame-Options", "DENY")
 			h.Set("Cache-Control", "no-store")
-			h.Set("Content-Security-Policy", "default-src 'none'")
 			return next(c)
 		}
 	}
