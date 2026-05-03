@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/flokiorg/flnd v0.1.20-beta
+	github.com/flokiorg/flnd v0.1.21-beta
 	github.com/flokiorg/go-flokicoin v0.25.13-alpha
 	github.com/getlantern/systray v1.2.2
 	github.com/godbus/dbus/v5 v5.1.0
@@ -14,6 +14,8 @@ require (
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	github.com/tidwall/gjson v1.14.2
 	github.com/wailsapp/wails/v2 v2.12.0
+	golang.org/x/image v0.12.0
+	golang.org/x/sys v0.38.0
 	google.golang.org/grpc v1.76.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
@@ -181,11 +183,9 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50 // indirect
-	golang.org/x/image v0.12.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
