@@ -27,9 +27,10 @@ const instanceLockPort = "59489"
 // App is the Wails application struct. Keep this thin — business logic lives
 // in the daemon package.
 type App struct {
-	ctx       context.Context
-	wailsJSON string
-	apiToken  string
+	ctx           context.Context
+	wailsJSON     string
+	apiToken      string
+	apiServerPort int
 
 	// db is the persistent SQLite database for node and config storage.
 	db *gorm.DB
@@ -67,6 +68,12 @@ func (a *App) Context() context.Context {
 func (a *App) GetAPIToken() string {
 	return a.apiToken
 }
+
+// SetAPIServerPort stores the loopback port the API HTTP server is bound to.
+func (a *App) SetAPIServerPort(port int) { a.apiServerPort = port }
+
+// GetAPIServerPort returns the loopback port the API HTTP server is bound to.
+func (a *App) GetAPIServerPort() int { return a.apiServerPort }
 
 // Startup is called by Wails when the application starts.
 func (a *App) Startup(ctx context.Context) {

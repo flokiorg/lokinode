@@ -51,10 +51,11 @@ func main() {
 	// exposed here; they go through the Echo HTTP handler instead.
 	bindings := lokiapp.NewBindings(app)
 
-	// In dev mode this starts a plain HTTP server on :9191 so Vite can proxy
-	// /api/* to it.  In production builds this is a no-op — the AssetServer
-	// Handler handles everything.
+	// Start the loopback API HTTP server.  In dev mode this binds :9191 so
+	// Vite can proxy /api/*.  In production it binds a random loopback port,
+	// bypassing the Wails WKURLSchemeHandler which cannot stream SSE responses.
 	lokidev.StartServer(app)
+	app.SetAPIServerPort(lokidev.GetPort())
 
 	// quitting is set before runtime.Quit so OnBeforeClose can tell the
 	// difference between the user clicking X (hide to tray) and the tray

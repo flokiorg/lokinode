@@ -18,8 +18,7 @@ import (
 const APIPort = "127.0.0.1:9191"
 
 // StartServer starts a plain HTTP server so Vite can proxy /api/* to it.
-// The production path uses AssetServer.Handler instead (no extra port,
-// requests go through Wails' in-process scheme handler).
+// The production path uses a real loopback server too (see server_prod.go).
 func StartServer(app *lokiapp.App) {
 	go func() {
 		log.Printf("[dev] API server → http://%s", APIPort)
@@ -28,3 +27,6 @@ func StartServer(app *lokiapp.App) {
 		}
 	}()
 }
+
+// GetPort returns the fixed loopback port used in dev mode.
+func GetPort() int { return 9191 }
