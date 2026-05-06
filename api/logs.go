@@ -58,6 +58,10 @@ func handleLogsStream(app App) echo.HandlerFunc {
 		// Some WebView2 / WKWebView builds buffer chunked responses;
 		// identity encoding keeps frames visible as soon as they are flushed.
 		h.Set("Transfer-Encoding", "identity")
+		// Allow the Wails WebView (origin: wails://wails) to connect directly
+		// to the loopback HTTP server without CORS rejection.  This is safe
+		// because the server is bound to 127.0.0.1 and requires a token.
+		h.Set("Access-Control-Allow-Origin", "*")
 		c.Response().WriteHeader(http.StatusOK)
 
 		ctx := c.Request().Context()

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useTranslation } from '@/i18n/context';
 import { getRawToken } from '@/lib/fetcher';
+import { GetAPIServerPort } from '../../../wailsjs/go/wails/Bindings';
 
 type Level = 'err' | 'wrn' | 'inf' | 'dbg' | 'trc' | 'raw';
 
@@ -85,10 +86,11 @@ export default function Logs() {
 
     function connect() {
       if (cancelled) return;
-      getRawToken().then(token => {
+      Promise.all([getRawToken(), GetAPIServerPort()]).then(([token, port]) => {
         if (cancelled) return;
         const params = new URLSearchParams({ token });
-        es = new EventSource(`/api/logs/stream?${params}`);
+        const base = port > 0 ? `http://127.0.0.1:${port}` : '';
+        es = new EventSource(`${base}/api/logs/stream?${params}`);
 
         es.onopen = () => setConnStatus('live');
 
