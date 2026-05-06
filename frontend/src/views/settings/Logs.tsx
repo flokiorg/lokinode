@@ -62,7 +62,7 @@ const LogLine = React.memo(function LogLine({ entry }: { entry: LogEntry }) {
   );
 });
 
-type ConnStatus = 'connecting' | 'live' | 'error';
+type ConnStatus = 'connecting' | 'reconnecting' | 'live';
 
 export default function Logs() {
   const { t } = useTranslation();
@@ -79,36 +79,48 @@ export default function Logs() {
     setFilename(null);
     setConnStatus('connecting');
 
-    let es: EventSource;
+    let es: EventSource | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
-    getRawToken().then(token => {
+    function connect() {
       if (cancelled) return;
-      const params = new URLSearchParams({ token });
-      es = new EventSource(`/api/logs/stream?${params}`);
+      getRawToken().then(token => {
+        if (cancelled) return;
+        const params = new URLSearchParams({ token });
+        es = new EventSource(`/api/logs/stream?${params}`);
 
-      es.onopen = () => setConnStatus('live');
+        es.onopen = () => setConnStatus('live');
 
-      es.addEventListener('filename', (e) => {
-        setFilename((e as MessageEvent).data as string);
+        es.addEventListener('filename', (e) => {
+          setFilename((e as MessageEvent).data as string);
+        });
+
+        es.onmessage = (e) => {
+          const text = (e.data as string).trim();
+          if (!text) return;
+          const entry: LogEntry = { id: ++_id, text, level: detectLevel(text) };
+          setEntries(prev =>
+            prev.length >= MAX_LINES
+              ? [...prev.slice(prev.length - MAX_LINES + 1), entry]
+              : [...prev, entry],
+          );
+        };
+
+        es.onerror = () => {
+          es?.close();
+          es = undefined;
+          setConnStatus('reconnecting');
+          retryTimer = setTimeout(connect, 3_000);
+        };
       });
+    }
 
-      es.onmessage = (e) => {
-        const text = (e.data as string).trim();
-        if (!text) return;
-        const entry: LogEntry = { id: ++_id, text, level: detectLevel(text) };
-        setEntries(prev =>
-          prev.length >= MAX_LINES
-            ? [...prev.slice(prev.length - MAX_LINES + 1), entry]
-            : [...prev, entry],
-        );
-      };
-
-      es.onerror = () => setConnStatus('error');
-    });
+    connect();
 
     return () => {
       cancelled = true;
+      clearTimeout(retryTimer);
       es?.close();
     };
   }, []);
@@ -145,9 +157,7 @@ export default function Logs() {
             className={`w-[5px] h-[5px] rounded-full transition-colors duration-300 ${
               connStatus === 'live'
                 ? 'bg-emerald-500 shadow-[0_0_5px_rgba(52,211,153,0.55)]'
-                : connStatus === 'connecting'
-                ? 'bg-amber-400 animate-pulse'
-                : 'bg-red-500'
+                : 'bg-amber-400 animate-pulse'
             }`}
           />
           <span className="text-[10px] font-mono text-gray-400 select-none">
@@ -177,7 +187,7 @@ export default function Logs() {
         >
           {entries.length === 0 ? (
             <p className="text-[10px] font-mono text-gray-400 mt-[2px]">
-              {connStatus === 'error'
+              {connStatus === 'reconnecting'
                 ? t('logs.offline')
                 : t('logs.waiting')}
             </p>
