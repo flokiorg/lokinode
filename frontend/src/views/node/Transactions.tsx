@@ -105,7 +105,7 @@ export default function Transactions() {
               <div className="flex flex-col gap-[2px]">
                 <div className="flex items-center gap-[6px]">
                     <p 
-                    onClick={() => BrowserOpenURL(`https://explorer.flokicoin.org/tx/${tx.txHash}`)}
+                    onClick={() => BrowserOpenURL(`https://lokichain.info/tx/${tx.txHash}`)}
                     className="text-gray-300 text-[11px] font-mono tracking-tight cursor-pointer hover:text-[#DA9526] transition-colors flex items-center gap-[4px]"
                   >
                     {shortHash(tx.txHash)}

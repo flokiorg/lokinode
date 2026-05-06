@@ -143,7 +143,7 @@ export default function Send() {
         
         <div className="flex flex-col items-center gap-[12px] mb-[32px] w-full max-w-[320px]">
           <div 
-            onClick={() => BrowserOpenURL(`https://explorer.flokicoin.org/tx/${done}`)}
+            onClick={() => BrowserOpenURL(`https://lokichain.info/tx/${done}`)}
             className="group relative bg-[#1c1c1e] border border-white/[0.06] rounded-2xl p-[16px] cursor-pointer hover:border-[#DA9526]/40 transition-all w-full"
           >
             <p className="text-gray-300 text-[11px] font-mono break-all leading-relaxed group-hover:text-white transition-colors">

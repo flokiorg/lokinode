@@ -36,7 +36,7 @@ func httpGet(url string) ([]byte, error) {
 }
 
 // GetBlocksTipHeight fetches the current chain tip height from a Flokicoin
-// block explorer (e.g. https://explorer.flokicoin.org).
+// block explorer (e.g. https://lokichain.info).
 func GetBlocksTipHeight(explorerHost string) (int64, error) {
 	body, err := httpGet(explorerHost + "/api/blocks/tip/height")
 	if err != nil {

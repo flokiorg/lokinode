@@ -5,5 +5,5 @@ export const frameworks = {
 }
 
 export const nodeChainScanMap: { [key: string]: string } = {
-  'mainnet':'https://explorer.flokicoin.org',
+  'mainnet':'https://lokichain.info',
 }

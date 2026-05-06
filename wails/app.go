@@ -165,7 +165,7 @@ func (a *App) GetDB() *gorm.DB {
 
 // ExplorerHost returns the block explorer base URL.
 func (a *App) ExplorerHost() string {
-	return "https://explorer.flokicoin.org"
+	return "https://lokichain.info"
 }
 
 // GetLogDir returns the log directory for the active node.
