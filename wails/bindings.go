@@ -35,6 +35,13 @@ func (b *Bindings) GetAPIToken() string {
 	return b.app.GetAPIToken()
 }
 
+// GetAPIServerPort returns the loopback port of the real HTTP server.
+// The frontend uses this to connect directly (bypassing the Wails scheme handler)
+// for SSE endpoints that require streaming.
+func (b *Bindings) GetAPIServerPort() int {
+	return b.app.GetAPIServerPort()
+}
+
 // OpenDirectorySelector opens a native OS directory-picker dialog and returns
 // the chosen path.  Returns an error if the user cancels.
 func (b *Bindings) OpenDirectorySelector(opts runtime.OpenDialogOptions) (string, error) {
