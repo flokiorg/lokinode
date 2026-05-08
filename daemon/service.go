@@ -318,7 +318,9 @@ func (s *Service) RestartWithConfig(cfg *flnd.Config) error {
 		oldDaemon.stop()
 	}
 
-	log.Debug("restart: old daemon stopped and joined")
+	// stop() requested shutdown; the run() loop's d.waitForShutdown() call will
+	// block until flnd.Main actually exits before starting the next daemon.
+	log.Debug("restart: old daemon shutdown requested")
 	return nil
 }
 

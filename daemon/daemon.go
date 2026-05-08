@@ -194,12 +194,17 @@ func (d *flndDaemon) waitForShutdown() {
 		log.Debug("shutdown requested; awaiting exec drain")
 	}
 
-	// Phase 2: shutdown requested — bounded grace for flnd.Main to return.
+	// Phase 2: shutdown requested — wait for flnd.Main to actually return.
+	// Log a warning at 8 s so slow shutdowns are visible, but do NOT give up:
+	// returning early while flnd.Main still holds its ports causes a port-conflict
+	// on the very next RunNode call ("address already in use").
 	select {
 	case <-done:
 		log.Debug("daemon exec drained after shutdown", "elapsed", time.Since(started))
 	case <-time.After(8 * time.Second):
-		log.Warn("daemon exec goroutine did not drain within 8s after shutdown")
+		log.Warn("daemon exec goroutine did not drain within 8s after shutdown; still waiting")
+		<-done
+		log.Warn("daemon exec drained (slow shutdown)", "elapsed", time.Since(started))
 	}
 
 	select {
