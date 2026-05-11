@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+
 // Init opens (or creates) the Lokinode SQLite database and runs all pending
 // schema migrations. The database is stored in the OS-standard data directory.
 func Init() (*gorm.DB, error) {
@@ -27,6 +28,15 @@ func Init() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// SQLite does not support concurrent writers. Limiting the pool to one
+	// connection serialises all access and prevents "database is locked" errors
+	// even when multiple goroutines hit the DB simultaneously.
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(1)
 
 	if err := migrateSchema(db); err != nil {
 		return nil, err

@@ -16,6 +16,8 @@ func registerRoutes(g *echo.Group, app App) {
 	g.GET("/node/last", handleGetLastNode(app))
 	g.GET("/node/list", handleListNodeConfigs(app))
 	g.POST("/node/config", handleSaveNodeConfig(app))
+	g.PATCH("/node/identity", handlePatchNodeIdentity(app))
+	g.DELETE("/node/remove", handleRemoveNode(app))
 
 	// Wallet
 	g.GET("/balance", handleBalance(app))

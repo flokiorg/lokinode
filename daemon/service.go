@@ -94,9 +94,12 @@ type Service struct {
 	daemon    *flndDaemon
 	cmux      sync.Mutex
 	wg        sync.WaitGroup
-	running   bool
 	lastEvent *Update
 	stopOnce  sync.Once
+	// retryNow signals waitForRetry to unblock. Capacity 1 + non-blocking sends
+	// ensure RestartWithConfig is never blocked. registerConnection drains stale
+	// signals — see comment there for the invariant this preserves.
+	retryNow chan struct{}
 }
 
 // New creates a Service from a validated *flnd.Config and starts the FLND
@@ -109,17 +112,18 @@ func New(pctx context.Context, cfg *flnd.Config) *Service {
 		flndConfig: cfg,
 		ctx:        ctx,
 		cancel:     cancel,
+		retryNow:   make(chan struct{}, 1),
 	}
 	go s.run()
 	return s
 }
 
+// run drives the daemon lifecycle: start → run → on crash, hold StatusDown
+// until a user-initiated Retry. Each iteration is a single attempt; the loop
+// exits when s.ctx is cancelled.
 func (s *Service) run() {
 	s.wg.Add(1)
 	defer s.wg.Done()
-
-	retryDelay := time.Second
-	const maxRetryDelay = 30 * time.Second
 
 	for {
 		select {
@@ -128,112 +132,154 @@ func (s *Service) run() {
 			s.stopDaemon()
 			return
 		default:
-			log.Info("service entering starting phase", "retry_delay", retryDelay)
-			s.notifySubscribers(&Update{State: StatusStarting})
+		}
 
-			// signal.Intercept() is a process-level singleton. There is a
-			// tiny window between shutdownChannel closing (which unblocks
-			// the previous waitForShutdown) and the handler goroutine
-			// resetting the global "started" flag. Fast-retry on that
-			// specific error instead of using the slow backoff path.
-			var interceptor signal.Interceptor
-			var interceptErr error
-			for {
-				interceptor, interceptErr = signal.Intercept()
-				if interceptErr == nil {
-					break
-				}
-				if !strings.Contains(interceptErr.Error(), "already started") {
-					break
-				}
-				select {
-				case <-s.ctx.Done():
-					return
-				case <-time.After(5 * time.Millisecond):
-				}
-			}
-			if interceptErr != nil {
-				log.Error("signal.Intercept failed", "err", interceptErr, "port_conflict", isPortConflict(interceptErr))
-				s.notifySubscribers(&Update{State: StatusDown, Err: interceptErr, PortConflict: isPortConflict(interceptErr)})
-				if !s.waitForRetry(retryDelay) {
-					return
-				}
-				retryDelay = clampRetry(retryDelay*2, maxRetryDelay)
-				continue
-			}
+		crashErr := s.runOnce()
+		if crashErr == nil {
+			// Clean shutdown (user-triggered Restart or Stop). Loop straight back
+			// to the top so the ctx.Done check decides whether to start a fresh
+			// daemon or exit.
+			continue
+		}
 
-			d, err := newDaemon(s.ctx, s.cloneConfig(), interceptor)
-			if err != nil {
-				log.Error("newDaemon failed", "err", err, "port_conflict", isPortConflict(err))
-				s.notifySubscribers(&Update{State: StatusDown, Err: err, PortConflict: isPortConflict(err)})
-				if !s.waitForRetry(retryDelay) {
-					return
-				}
-				retryDelay = clampRetry(retryDelay*2, maxRetryDelay)
-				continue
-			}
-
-			c, err := d.start()
-			if err != nil {
-				log.Error("daemon start failed", "err", err, "port_conflict", isPortConflict(err))
-				s.notifySubscribers(&Update{State: StatusDown, Err: err, PortConflict: isPortConflict(err)})
-				if !s.waitForRetry(retryDelay) {
-					return
-				}
-				retryDelay = clampRetry(retryDelay*2, maxRetryDelay)
-				continue
-			}
-
-			log.Info("daemon started; subscribing to health stream")
-			retryDelay = time.Second
-			s.running = true
-
-			ctx, cancel := context.WithCancel(s.ctx)
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						lokilog.Trace(log, "health relay exiting on ctx cancel")
-						d.stop()
-						return
-					case health := <-c.Health():
-						// Drop self-induced events: once we've called d.stop,
-						// the gRPC stream will error and emit StatusDown. The
-						// run loop publishes StatusStarting on the next
-						// iteration, which is the correct transition — letting
-						// the spurious StatusDown through would flash a fake
-						// "node down" error across every consumer (e.g. the
-						// UI during a Lock/Restart cycle).
-						if d.isStopping() {
-							lokilog.Trace(log, "suppressing health update (daemon stopping)", "state", string(health.State))
-							continue
-						}
-						lokilog.Trace(log, "health update", "state", string(health.State), "port_conflict", health.PortConflict)
-						s.notifySubscribers(health)
-						if health.State == StatusDown {
-							log.Warn("health reported down; stopping daemon", "err", health.Err)
-							d.stop()
-						}
-					}
-				}
-			}()
-
-			s.registerConnection(d, c)
-			d.waitForShutdown()
-			log.Info("daemon shutdown complete; run loop will restart")
-			cancel()
-			s.running = false
+		// Crashed or failed to start: hold StatusDown and wait for explicit
+		// user action (Retry button) — no auto-retry.
+		if !s.waitForRetry() {
+			return
 		}
 	}
 }
 
-func (s *Service) waitForRetry(delay time.Duration) bool {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
+// runOnce performs one full daemon lifecycle. Returns nil on a clean shutdown
+// (no auto-retry needed) or the captured crash error otherwise.
+func (s *Service) runOnce() error {
+	log.Info("service entering starting phase")
+	s.notifySubscribers(&Update{State: StatusStarting})
+
+	interceptor, err := s.acquireSignalInterceptor()
+	if err != nil {
+		return s.failStartup("signal.Intercept", err)
+	}
+
+	d, err := newDaemon(s.ctx, s.cloneConfig(), interceptor)
+	if err != nil {
+		return s.failStartup("newDaemon", err)
+	}
+
+	c, err := d.start()
+	if err != nil {
+		return s.failStartup("daemon start", err)
+	}
+
+	log.Info("daemon started; subscribing to health stream")
+	return s.superviseDaemon(d, c)
+}
+
+// superviseDaemon runs the health relay for d/c, blocks until the daemon
+// exits, and returns the crash error captured by the relay (or nil if the
+// shutdown was clean). The connection pointers are cleared before returning.
+func (s *Service) superviseDaemon(d *flndDaemon, c *Client) error {
+	relayCtx, relayCancel := context.WithCancel(s.ctx)
+	defer relayCancel()
+
+	// Buffered so the relay never blocks on its final send, even if this
+	// function exits via panic before the receive.
+	relayDone := make(chan error, 1)
+	go func() {
+		relayDone <- s.runHealthRelay(relayCtx, d, c)
+	}()
+
+	s.registerConnection(d, c)
+	d.waitForShutdown()
+	log.Info("daemon shutdown complete; run loop will restart")
+
+	// Cancel the relay and wait for it to drain. The channel receive
+	// establishes happens-before with every write the relay made — including
+	// the captured crashErr — so this read is race-free.
+	relayCancel()
+	crashErr := <-relayDone
+
+	s.cmux.Lock()
+	s.daemon = nil
+	s.client = nil
+	s.cmux.Unlock()
+
+	return crashErr
+}
+
+// runHealthRelay forwards health updates to subscribers and returns the first
+// crash error observed before the daemon was stopped. Exits when ctx is
+// cancelled.
+func (s *Service) runHealthRelay(ctx context.Context, d *flndDaemon, c *Client) error {
+	var crashErr error
+	for {
+		select {
+		case <-ctx.Done():
+			lokilog.Trace(log, "health relay exiting on ctx cancel")
+			// Idempotent: if d.stop was already called, this is a no-op.
+			d.stop()
+			return crashErr
+		case health, ok := <-c.Health():
+			if !ok {
+				return crashErr
+			}
+			// Drop self-induced events: once d.stop has been called the gRPC
+			// stream will error and emit StatusDown. Forwarding that would
+			// flash a fake "node down" across the UI during Lock/Restart.
+			if d.isStopping() {
+				lokilog.Trace(log, "suppressing health update (daemon stopping)", "state", string(health.State))
+				continue
+			}
+			lokilog.Trace(log, "health update", "state", string(health.State), "port_conflict", health.PortConflict)
+			s.notifySubscribers(health)
+			if health.State == StatusDown {
+				log.Warn("health reported down; stopping daemon", "err", health.Err)
+				if crashErr == nil {
+					crashErr = health.Err
+				}
+				// Mark stopping so any further events from the dying stream
+				// are suppressed. Idempotent against later cancellations.
+				d.stop()
+			}
+		}
+	}
+}
+
+// acquireSignalInterceptor obtains the process-level signal interceptor,
+// retrying past the brief "already started" window that follows the previous
+// daemon's shutdown.
+func (s *Service) acquireSignalInterceptor() (signal.Interceptor, error) {
+	for {
+		interceptor, err := signal.Intercept()
+		if err == nil {
+			return interceptor, nil
+		}
+		if !strings.Contains(err.Error(), "already started") {
+			return interceptor, err
+		}
+		select {
+		case <-s.ctx.Done():
+			return interceptor, s.ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+// failStartup publishes a StatusDown event for a startup-phase error and
+// returns the error so runOnce can hand it to the retry-gate.
+func (s *Service) failStartup(stage string, err error) error {
+	log.Error("daemon startup failed", "stage", stage, "err", err, "port_conflict", isPortConflict(err))
+	s.notifySubscribers(&Update{State: StatusDown, Err: err, PortConflict: isPortConflict(err)})
+	return err
+}
+
+// waitForRetry blocks until the user signals retry via RestartWithConfig or
+// the service is shut down. Returns true to continue, false to exit the loop.
+func (s *Service) waitForRetry() bool {
 	select {
 	case <-s.ctx.Done():
 		return false
-	case <-timer.C:
+	case <-s.retryNow:
 		return true
 	}
 }
@@ -252,7 +298,7 @@ func (s *Service) cloneConfig() *flnd.Config {
 	return &cfg
 }
 
-// Stop shuts down the service and the underlying daemon cleanly.
+// Stop shuts down the service and the underlying daemon cleanly. Idempotent.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
 		log.Info("service stop requested")
@@ -260,47 +306,40 @@ func (s *Service) Stop() {
 		s.cancel()
 		s.unsubscribeAll()
 		s.wg.Wait()
-		s.running = false
 		log.Info("service stopped")
 	})
 }
 
+// stopDaemon stops the daemon if one is running. cmux is held only long enough
+// to claim ownership of the *flndDaemon — the actual blocking shutdown happens
+// outside the lock so concurrent readers of s.client are not stalled.
 func (s *Service) stopDaemon() {
 	s.cmux.Lock()
-	defer s.cmux.Unlock()
-	if s.daemon != nil {
-		s.daemon.stop()
-		s.daemon.waitForShutdown()
-		s.daemon = nil
-		s.client = nil
+	d := s.daemon
+	s.daemon = nil
+	s.client = nil
+	s.cmux.Unlock()
+	if d == nil {
+		return
 	}
+	d.stop()
+	d.waitForShutdown()
 }
 
 // Restart bounces the current daemon so the service's run() loop brings up a
-// fresh one (locked wallet, fresh gRPC conn). Returns ErrDaemonNotRunning if
-// the daemon hasn't been registered yet — callers must not treat the silent
-// no-op as success, otherwise the UI waits for a state change that never
-// comes. If the daemon is mid-startup the caller should wait, not Restart.
+// fresh one (locked wallet, fresh gRPC conn). Safe to call at any lifecycle
+// stage: if the daemon is running it is stopped and the run() loop restarts
+// it; if it is in a retry-delay (crashed/never started) the delay is
+// interrupted and a new attempt starts immediately.
 //
-// Publishes StatusStarting to subscribers *before* stopping the daemon, and
+// Publishes StatusStarting to subscribers before stopping the daemon, and
 // clears the cached client/daemon pointers so readers (e.g. info handler's
-// GetState fallback) see the transition immediately. Without this push, the
-// run() loop only emits StatusStarting after waitForShutdown returns (up to
-// ~10s), during which info polls continue reporting the stale prior state.
+// GetState fallback) see the transition immediately.
 func (s *Service) Restart() error {
 	return s.RestartWithConfig(nil)
 }
 
 func (s *Service) RestartWithConfig(cfg *flnd.Config) error {
-	s.cmux.Lock()
-	d := s.daemon
-	s.cmux.Unlock()
-	if d == nil {
-		lokilog.Trace(log, "restart requested but daemon not running")
-		return ErrDaemonNotRunning
-	}
-	log.Info("restart requested")
-
 	if cfg != nil {
 		s.configMu.Lock()
 		s.flndConfig = cfg
@@ -308,19 +347,30 @@ func (s *Service) RestartWithConfig(cfg *flnd.Config) error {
 	}
 
 	s.notifySubscribers(&Update{State: StatusStarting})
+
 	s.cmux.Lock()
-	oldDaemon := s.daemon
+	d := s.daemon
 	s.client = nil
 	s.daemon = nil
 	s.cmux.Unlock()
 
-	if oldDaemon != nil {
-		oldDaemon.stop()
+	if d != nil {
+		// Daemon is running — stop it; the run() loop's waitForShutdown will
+		// unblock and restart automatically.
+		log.Info("restart requested; stopping daemon")
+		d.stop()
+	} else {
+		// Daemon is not running: either it crashed before gRPC came up, or it
+		// crashed after and the run loop is sleeping in waitForRetry. Signal the
+		// channel to wake it up immediately so the next attempt starts without
+		// waiting for the full backoff delay.
+		log.Info("restart requested; daemon not running, interrupting retry delay")
+		select {
+		case s.retryNow <- struct{}{}:
+		default:
+		}
 	}
 
-	// stop() requested shutdown; the run() loop's d.waitForShutdown() call will
-	// block until flnd.Main actually exits before starting the next daemon.
-	log.Debug("restart: old daemon shutdown requested")
 	return nil
 }
 
@@ -333,6 +383,17 @@ func (s *Service) registerConnection(d *flndDaemon, c *Client) {
 	s.configMu.Lock()
 	s.flndConfig.ResetWalletTransactions = false
 	s.configMu.Unlock()
+	// Drain any retry signal that was deposited during startup. retryNow is
+	// only meaningful while waitForRetry is blocked; a signal sent between
+	// iterations (e.g. RestartWithConfig firing while we were inside
+	// newDaemon/d.start with s.daemon still nil) would otherwise sit in the
+	// buffer and short-circuit the next genuine waitForRetry — silently
+	// auto-retrying on the next crash and breaking the "down until user
+	// clicks Retry" invariant.
+	select {
+	case <-s.retryNow:
+	default:
+	}
 }
 
 // Subscribe returns a channel that receives all future state updates.
@@ -387,8 +448,13 @@ func (s *Service) unsubscribeAll() {
 	s.subs = s.subs[:0]
 }
 
-// GetLastEvent returns the most recent status update.
+// GetLastEvent returns the most recent status update. The pointer is read
+// under subMu to pair with the write in notifySubscribers; the returned
+// *Update itself is treated as immutable by all writers, so callers may
+// safely read its fields without holding the mutex.
 func (s *Service) GetLastEvent() *Update {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
 	return s.lastEvent
 }
 
@@ -719,11 +785,4 @@ func (s *Service) WaitForStatus(ctx context.Context, target Status) error {
 			}
 		}
 	}
-}
-
-func clampRetry(d, max time.Duration) time.Duration {
-	if d > max {
-		return max
-	}
-	return d
 }

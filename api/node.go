@@ -175,7 +175,7 @@ func handleListNodeConfigs(app App) echo.HandlerFunc {
 
 		// Sanity check: filter only existing directories and deduplicate by Dir
 		// (e.g. if the user reset the node in the same folder, we only want the latest PubKey)
-		var existing []db.Node
+		existing := make([]db.Node, 0)
 		seenDirs := make(map[string]bool)
 		for _, n := range nodes {
 			if seenDirs[n.Dir] {
@@ -188,6 +188,76 @@ func handleListNodeConfigs(app App) echo.HandlerFunc {
 		}
 
 		return c.JSON(http.StatusOK, existing)
+	}
+}
+
+// handlePatchNodeIdentity updates only pubKey and alias for an existing node record,
+// preserving all daemon config fields (cors, listen addresses, etc.).
+// Used by the frontend to persist the discovered pubKey after a node first starts.
+func handlePatchNodeIdentity(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		var req struct {
+			Dir    string `json:"dir"`
+			PubKey string `json:"pubKey"`
+			Alias  string `json:"alias"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return apiErr(c, http.StatusBadRequest, err)
+		}
+		req.Dir = filepath.Clean(req.Dir)
+		if req.Dir == "" || req.Dir == "." {
+			return apiErr(c, http.StatusBadRequest, fmt.Errorf("dir is required"))
+		}
+		gormDB := app.GetDB()
+		if gormDB == nil {
+			return apiErr(c, http.StatusInternalServerError, fmt.Errorf("db not ready"))
+		}
+		// Load existing or create a minimal record if none exists yet
+		// (e.g. when the Onboard DB-save failed but the daemon started successfully).
+		var node db.Node
+		if err := gormDB.First(&node, "dir = ?", req.Dir).Error; err != nil {
+			// New record — Onboard save must have failed. Use safe defaults so
+			// the next node start doesn't boot as private with no config.
+			node.Dir = req.Dir
+			node.NodePublic = true
+		}
+		if req.PubKey != "" {
+			node.PubKey = req.PubKey
+		}
+		if req.Alias != "" {
+			node.Alias = req.Alias
+		}
+		node.LastOpened = time.Now()
+		if err := gormDB.Save(&node).Error; err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		if req.PubKey != "" {
+			gormDB.Clauses(clause.OnConflict{UpdateAll: true}).Create(&db.AppConfig{
+				Key:   db.ConfigKeyLastNodePubKey,
+				Value: req.PubKey,
+			})
+		}
+		return c.NoContent(http.StatusNoContent)
+	}
+}
+
+func handleRemoveNode(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		dir := filepath.Clean(c.QueryParam("dir"))
+		if dir == "" || dir == "." {
+			return apiErr(c, http.StatusBadRequest, fmt.Errorf("dir query param required"))
+		}
+		if cfg := app.Config(); cfg != nil && filepath.Clean(cfg.DataDir) == dir {
+			return apiErr(c, http.StatusConflict, fmt.Errorf("cannot remove the currently running node"))
+		}
+		gormDB := app.GetDB()
+		if gormDB == nil {
+			return apiErr(c, http.StatusServiceUnavailable, fmt.Errorf("db not ready"))
+		}
+		if err := gormDB.Delete(&db.Node{}, "dir = ?", dir).Error; err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		return c.NoContent(http.StatusNoContent)
 	}
 }
 
@@ -256,8 +326,17 @@ func handleSaveNodeConfig(app App) echo.HandlerFunc {
 			}
 
 			// ── Upsert by dir (primary key) ───────────────────────────────────
+			// Inherit existing pubKey when the caller didn't supply one — GORM
+			// Save replaces the whole row, which would zero out a known pubKey.
+			effectivePubKey := req.PubKey
+			if effectivePubKey == "" {
+				var existing db.Node
+				if tx.First(&existing, "dir = ?", req.Dir).Error == nil && existing.PubKey != "" {
+					effectivePubKey = existing.PubKey
+				}
+			}
 			node := db.Node{
-				PubKey:     req.PubKey,
+				PubKey:     effectivePubKey,
 				Dir:        req.Dir,
 				Alias:      req.Alias,
 				NodePublic: req.NodePublic,

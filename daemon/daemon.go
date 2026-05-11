@@ -46,10 +46,15 @@ type flndDaemon struct {
 // observed after this point are self-induced (we just closed the gRPC conn)
 // and must not be forwarded as genuine StatusDown — otherwise consumers see
 // a spurious "node down" blip during a deliberate Restart.
+//
+// Intentionally does NOT consult d.closed: a natural exit of flnd.Main sets
+// d.closed via waitForShutdown without ever calling stop(), and in that case
+// the trailing StatusDown event from the gRPC stream IS the genuine crash
+// notification and must be forwarded so the run loop can capture the error.
 func (d *flndDaemon) isStopping() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.stopping || d.closed
+	return d.stopping
 }
 
 func newDaemon(pctx context.Context, config *flnd.Config, interceptor signal.Interceptor) (*flndDaemon, error) {

@@ -146,16 +146,10 @@ func handleInfo(app App) echo.HandlerFunc {
 				if resp.State == string(daemon.StatusSyncing) && info.SyncedToChain {
 					resp.State = string(daemon.StatusReady)
 				}
-				// Uris holds the addresses the node actually announces to the network
-				// (e.g. ["02abc...@1.2.3.4:5521"]). Use these to report what the
-				// daemon is really doing — the configured RawExternalIPs value may
-				// not yet reflect a UPnP-discovered address or NAT translation.
-				if len(info.Uris) > 0 {
-					resp.NodePublic = true
-					if addr := extractHostPort(info.Uris[0]); addr != "" {
-						resp.ExternalIP = addr
-					}
-				}
+				// Do NOT derive ExternalIP from Uris: UPnP can advertise a
+				// different address than what the user configured, which would
+				// cause a permanent isDirty banner in settings. ExternalIP is
+				// always sourced from cfg.RawExternalIPs below.
 			}
 
 			// Credentials and network addresses — cheap path: reuses the
@@ -177,17 +171,13 @@ func handleInfo(app App) echo.HandlerFunc {
 			resp.MacaroonPath = cfg.AdminMacPath
 			resp.TLSCertPath = cfg.TLSCertPath
 
-			// Current configuration state (to detect dirty state).
-			// gRPC-derived values (from GetInfo.Uris) take precedence when
-			// available — they reflect what the daemon is actually announcing.
-			// Fall back to the in-memory config for each field independently.
+			// Config-derived state fields (used for isDirty comparison in settings).
+			// Always sourced from the in-memory config, not from gRPC announcements.
 			if resp.NodeAlias == "" {
 				resp.NodeAlias = cfg.Alias
 			}
-			if !resp.NodePublic {
-				resp.NodePublic = !cfg.DisableListen
-			}
-			if resp.ExternalIP == "" && len(cfg.RawExternalIPs) > 0 {
+			resp.NodePublic = !cfg.DisableListen
+			if len(cfg.RawExternalIPs) > 0 {
 				resp.ExternalIP = cfg.RawExternalIPs[0]
 			}
 			resp.RestCors = strings.Join(cfg.RestCORS, ",")

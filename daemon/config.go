@@ -72,20 +72,25 @@ func BuildAndValidate(interceptor signal.Interceptor, ucfg UserNodeConfig) (*fln
 	// ValidateConfig parses the flnd.conf file which might overwrite our
 	// programmatic settings. Since we treat the Lokinode DB as the source of
 	// truth for user-managed settings (Alias, IP, CORS, etc), we re-apply
-	// them here to ensure they stick even if a conflicting flnd.conf exists.
-	if ucfg.Alias != "" {
-		finalCfg.Alias = ucfg.Alias
-	}
+	// them unconditionally here so that intentionally-empty values (e.g. a
+	// cleared alias or CORS list) are respected and don't leave the daemon
+	// running with a stale flnd.conf value that makes isDirty permanently true.
+	finalCfg.Alias = ucfg.Alias
 	if ucfg.RestCors != "" {
 		finalCfg.RestCORS = strings.Split(ucfg.RestCors, ",")
+	} else {
+		finalCfg.RestCORS = nil
 	}
 	if ucfg.NodePublic {
 		finalCfg.DisableListen = false
 		if ucfg.ExternalIP != "" {
 			finalCfg.RawExternalIPs = []string{ucfg.ExternalIP}
+		} else {
+			finalCfg.RawExternalIPs = nil
 		}
 	} else {
 		finalCfg.DisableListen = true
+		finalCfg.RawExternalIPs = nil
 	}
 
 	return finalCfg, nil
