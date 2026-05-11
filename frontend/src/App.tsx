@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { createHashRouter, redirect, Outlet, useLocation } from 'react-router-dom';
 import Main from './pages/Main/Main';
 import Node from './pages/Node/Node';
-import Create from './pages/Create/Create';
 import Onboard from './pages/Onboard/Onboard';
 import Settings from './pages/Settings/Settings';
 import { Header } from '@/components/Header/Header';
@@ -24,43 +23,34 @@ function Layout() {
   const { t } = useTranslation();
   const location = useLocation();
   const isMain = location.pathname === '/';
-  const isOnboard = location.pathname === '/onboard';
   const isNode = location.pathname === '/node';
 
   const {
-    nodeDir, setNodeDir,
-    pubKey, setPubKey,
+    nodeDir,
+    pubKey,    setPubKey,
     aliasName, setAliasName,
-    nodePublic, setNodePublic,
-    nodeIP, setNodeIP,
-    saveToDB
   } = useNodeConfigStore();
   const { data: info } = useSWR<any>('/api/info', fetcher, { refreshInterval: 5000 });
 
-  // ── Global Node Sync ────────────────────────────────────────────────────────
-  // Sync local state (pubkey, alias, visibility) with daemon when running.
+  // ── Global pubKey sync ──────────────────────────────────────────────────────
+  // When the daemon comes up, persist the discovered pubkey and sync alias.
   useEffect(() => {
     if (!info?.nodeRunning || !info.nodePubkey) return;
 
-    let changed = false;
     if (info.nodePubkey !== pubKey) {
       setPubKey(info.nodePubkey);
-      changed = true;
+      // Persist pubKey to DB without overwriting daemon config fields.
+      if (nodeDir) {
+        patch('/api/node/identity', { dir: nodeDir, pubKey: info.nodePubkey }).catch(() => {});
+      }
     }
-    
-    // Only sync alias from the node if we don't have one set locally, 
-    // or if the local one is the generic default.
+
+    // Sync alias into the store (display only) when local alias is unset or default.
     const isDefault = !aliasName || aliasName === t('main.default_alias');
     if (info.nodeAlias && isDefault && info.nodeAlias !== aliasName) {
       setAliasName(info.nodeAlias);
-      changed = true;
     }
-
-    // Only persist to DB if something actually changed.
-    if (changed) {
-      saveToDB();
-    }
-  }, [info?.nodeRunning, info?.nodePubkey, info?.nodeAlias, pubKey, aliasName, setPubKey, setAliasName, saveToDB, t]);
+  }, [info?.nodeRunning, info?.nodePubkey, info?.nodeAlias, pubKey, aliasName, nodeDir, t]);
 
   // Determine glow intensity/color based on page
   const glowOpacity = isMain || isNode ? '0.18' : '0.12';
@@ -96,7 +86,7 @@ function Layout() {
 // With a loader, the redirect is authoritative, synchronous (from React
 // Router's perspective), and never fires from inside the component tree.
 
-import { fetcher } from './lib/fetcher';
+import { fetcher, patch } from './lib/fetcher';
 
 import { useNodeSessionStore } from '@/store/nodeSession';
 
@@ -124,7 +114,6 @@ export const router = createHashRouter([
       { path: '/',         element: <Main />     },
       { path: '/node',     element: <Node />,     loader: nodeLoader },
       { path: '/onboard',  element: <Onboard />  },
-      { path: '/create',   element: <Create />   },
       { path: '/settings', element: <Settings /> },
     ],
   },

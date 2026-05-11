@@ -54,10 +54,6 @@ function Onboard() {
   const {
     nodeDir, setNodeDir,
     setAliasName,
-    restCors: storedRestCors, setRestCors,
-    rpcListen: storedRpcListen, setRpcListen,
-    restListen: storedRestListen, setRestListen,
-    setNodePublic, setNodeIP,
   } = useNodeConfigStore();
   const { setUserStopped, setAutoUnlockPending } = useNodeSessionStore();
 
@@ -66,9 +62,9 @@ function Onboard() {
   const [alias, setAlias] = useState('');
   const [aliasError, setAliasError] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [restCors, setLocalRestCors] = useState(storedRestCors || DEFAULT_REST_CORS);
-  const [rpcListen, setLocalRpcListen] = useState(storedRpcListen || DEFAULT_RPC_LISTEN);
-  const [restListen, setLocalRestListen] = useState(storedRestListen || DEFAULT_REST_LISTEN);
+  const [restCors,   setLocalRestCors]   = useState(DEFAULT_REST_CORS);
+  const [rpcListen,  setLocalRpcListen]  = useState(DEFAULT_RPC_LISTEN);
+  const [restListen, setLocalRestListen] = useState(DEFAULT_REST_LISTEN);
 
   const [walletMode, setWalletMode] = useState<WalletMode | null>(null);
 
@@ -99,6 +95,13 @@ function Onboard() {
   useEffect(() => {
     if (step === 'node') {
       setNodeDir('');
+      GetDefaultNodeDir()
+        .then(async dir => {
+          if (!dir) return;
+          const res = await fetcher<{ exists: boolean }>(`/api/node/check-dir?dir=${encodeURIComponent(dir)}`);
+          if (!res.exists) setNodeDir(dir);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -164,16 +167,17 @@ function Onboard() {
   async function handleNext() {
     if (step === 'node') {
       if (!validateNode()) return;
-      // Re-verify directory emptiness on Continue click
+      // Reject only if this directory already contains an existing node (tls.cert / wallet.db).
+      // A non-empty directory that has no node data is perfectly fine — flnd will initialise into it.
       try {
-        const { empty } = await fetcher<{empty: boolean}>(`/api/node/dir-empty?dir=${encodeURIComponent(nodeDir)}`);
-        if (!empty) {
-          setDirError(t('validation.dir_not_empty'));
+        const { exists } = await fetcher<{exists: boolean}>(`/api/node/check-dir?dir=${encodeURIComponent(nodeDir)}`);
+        if (exists) {
+          setDirError(t('onboard.errors.wallet_exists'));
           return;
         }
         setDirError('');
-      } catch (err) {
-        return; // Error already shown via toast in chooseNodeDir or similar
+      } catch {
+        return;
       }
     }
     if (step === 'wallet-mode' && !walletMode)         return;
@@ -240,10 +244,7 @@ function Onboard() {
     cancelLaunchRef.current = false;
     setLaunchError('');
 
-    // Persist node config so power-on from Main works later
     setAliasName(alias.trim());
-    setRestCors(restCors); setRpcListen(rpcListen); setRestListen(restListen);
-    setNodePublic(true); setNodeIP('');
     setUserStopped(false);
     setAutoUnlockPending(false);
 
@@ -302,10 +303,30 @@ function Onboard() {
         hex: walletMode === 'restore' && restoreKind === 'hex' ? restoreHex.trim() : '',
       });
 
+      // Wait for the daemon to leave noWallet before navigating — /api/wallet/init
+      // returns as soon as the RPC call completes, but the daemon needs a moment to
+      // process the new wallet and transition to locked/syncing.
+      await pollUntil<InfoResponse>(
+        '/api/info',
+        (r) => r.state !== 'noWallet' && r.state !== '',
+        { timeoutMs: 15_000, intervalMs: 500, cancelled: () => cancelLaunchRef.current },
+      ).catch(() => { /* timeout is fine — navigate anyway */ });
+
       setPhase('done');
-      // Clear seed from memory as soon as we navigate away.
       setGeneratedWords([]);
-      
+
+      // Persist the new node record so Main and Settings can find it.
+      await post('/api/node/config', {
+        pubKey:     '',
+        dir:        nodeDir,
+        alias:      alias.trim(),
+        nodePublic: true,
+        externalIP: '',
+        restCors,
+        rpcListen,
+        restListen,
+      }).catch(() => {});
+
       mutate('/api/info');
       navigate('/node', { replace: true });
     } catch (err) {
@@ -627,25 +648,23 @@ function Onboard() {
                 <div className="flex flex-col items-center justify-center py-[4px]">
                   {/* Planetary Power Button Section */}
                   <div className="relative flex items-center justify-center w-[210px] h-[210px] mb-[10px]">
-                    {/* Unified Kinetic Spinner - core hidden so button can take its place */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <KineticSpinner size={210} showCore={false} />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleLaunch}
-                      disabled={phase !== 'idle'}
-                      className={`relative z-10 w-[72px] h-[72px] rounded-full border-2 border-[#DA9526] bg-[#1a1a1a] flex items-center justify-center transition-all duration-300 shadow-[0_0_40px_rgba(218,149,38,0.2)] group ${phase !== 'idle' ? 'cursor-wait opacity-50' : 'hover:scale-[1.08] hover:shadow-[0_0_50px_rgba(218,149,38,0.3)] active:scale-[0.96]'}`}
-                    >
-                      {phase !== 'idle' && phase !== 'error' ? (
-                        <div className="scale-110">
-                          <KineticSpinner size={28} coreSize={7} />
+                    {phase !== 'idle' && phase !== 'error' ? (
+                      <KineticSpinner size={210} />
+                    ) : (
+                      <>
+                        {/* Unified Kinetic Spinner - core hidden so button can take its place */}
+                        <div className="absolute inset-0 pointer-events-none">
+                          <KineticSpinner size={210} showCore={false} />
                         </div>
-                      ) : (
-                        <Power size={28} strokeWidth={2} className="text-[#DA9526] group-hover:scale-110 transition-transform" />
-                      )}
-                    </button>
+                        <button
+                          type="button"
+                          onClick={handleLaunch}
+                          className="relative z-10 w-[72px] h-[72px] rounded-full border-2 border-[#DA9526] bg-[#1a1a1a] flex items-center justify-center transition-all duration-300 shadow-[0_0_40px_rgba(218,149,38,0.2)] group hover:scale-[1.08] hover:shadow-[0_0_50px_rgba(218,149,38,0.3)] active:scale-[0.96]"
+                        >
+                          <Power size={28} strokeWidth={2} className="text-[#DA9526] group-hover:scale-110 transition-transform" />
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Compact Glassmorphic Summary Card */}
