@@ -16,7 +16,7 @@ type SettingsTab = 'network' | 'security' | 'logs' | 'about';
 export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: info } = useInfo();
+  const { data: info } = useInfo(true);
   const { t } = useTranslation();
   const [tab, setTab] = useState<SettingsTab>(
     (location.state as { tab?: SettingsTab } | null)?.tab ?? 'network'
@@ -79,7 +79,7 @@ export default function Settings() {
             className={`h-full overflow-hidden ${tab === 'logs' ? '' : 'overflow-y-auto px-[20px] py-[16px]'}`}
           >
             {tab === 'security' && <Security />}
-            {tab === 'network'  && <Network />}
+            {tab === 'network'  && <Network info={info} />}
             {tab === 'logs'     && <Logs />}
             {tab === 'about'    && (
               <div className="flex flex-col gap-[12px]">

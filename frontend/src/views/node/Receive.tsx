@@ -52,23 +52,30 @@ export default function Receive() {
   useEffect(() => {
     if (!address || !canvasRef.current) return;
     const canvas = canvasRef.current;
+    const cssSize = 200;
+    // Scale the canvas backing store by devicePixelRatio so the QR code renders
+    // crisp on Retina (macOS 2x) and HiDPI Windows (1.25x–2x) displays.
+    const dpr = Math.round(window.devicePixelRatio || 1);
     QRCode.toCanvas(canvas, address, {
-      width: 200,
+      width: cssSize * dpr,
       margin: 2,
       errorCorrectionLevel: 'H',
       color: { dark: '#FFFFFF', light: '#1c1c1e' },
     }, (err) => {
       if (err) return;
+      // Keep visual size at cssSize CSS pixels regardless of DPR.
+      canvas.style.width = `${cssSize}px`;
+      canvas.style.height = `${cssSize}px`;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       const img = new Image();
       img.src = logo;
       img.onload = () => {
-        const size = canvas.width;
+        const size = canvas.width; // physical pixels (cssSize * dpr)
         const logoSize = Math.round(size * 0.22);
         const x = (size - logoSize) / 2;
         const y = (size - logoSize) / 2;
-        const pad = 4;
+        const pad = Math.round(4 * dpr);
         ctx.fillStyle = '#1c1c1e';
         ctx.beginPath();
         ctx.arc(size / 2, size / 2, logoSize / 2 + pad, 0, Math.PI * 2);

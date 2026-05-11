@@ -1,14 +1,14 @@
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '@/i18n/context';
 import { Check, Copy, RefreshCw, Loader } from 'lucide-react';
-import { useInfo } from '@/hooks/useInfo';
-import { useNodeConfigStore } from '@/store/nodeConfig';
+import { useNodeConfigStore, DEFAULT_REST_CORS, DEFAULT_RPC_LISTEN, DEFAULT_REST_LISTEN } from '@/store/nodeConfig';
 import { useNodeSessionStore } from '@/store/nodeSession';
-import { post } from '@/lib/fetcher';
+import { fetcher, post } from '@/lib/fetcher';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/useToast';
+import type { InfoResponse } from '@/lib/types';
 
 // Accepts bare IPv4, IPv4:port, bare IPv6, or [IPv6]:port.
 const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}(:\d{1,5})?$/;
@@ -23,15 +23,12 @@ function isValidCORS(cors: string): boolean {
   if (!cors.trim()) return true;
   const parts = cors.split(',').map(p => p.trim()).filter(Boolean);
   if (parts.length === 0) return true;
-
   for (const p of parts) {
     if (p === '*') continue;
     try {
       const url = new URL(p);
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-      // CORS origins should not have paths, queries, or fragments
       if (url.pathname !== '/' || url.search !== '' || url.hash !== '') return false;
-      // URL constructor validates port range automatically (throws if > 65535)
     } catch {
       return false;
     }
@@ -74,15 +71,9 @@ function CopyRow({ label, value, last }: { label: string; value: string; last?: 
   }
 
   return (
-    <div
-      className={`flex items-center justify-between px-[16px] py-[11px] ${
-        last ? '' : 'border-b border-white/[0.04]'
-      }`}
-    >
+    <div className={`flex items-center justify-between px-[16px] py-[11px] ${last ? '' : 'border-b border-white/[0.04]'}`}>
       <div className="flex flex-col gap-[1px] flex-1 min-w-0 mr-[12px]">
-        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
-          {label}
-        </span>
+        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
         <input type="text" readOnly value={value || '—'} className="bg-transparent border-none text-gray-300 text-[11px] font-mono focus:ring-0 outline-none w-full px-0 py-0 cursor-text" />
       </div>
       <button
@@ -103,20 +94,13 @@ function CopyRow({ label, value, last }: { label: string; value: string; last?: 
 // ── Credential row — hex / path pill toggle ───────────────────────────────────
 
 function CredentialRow({
-  label,
-  hexValue,
-  pathValue,
-  loading,
+  label, hexValue, pathValue, loading,
 }: {
-  label: string;
-  hexValue: string;
-  pathValue: string;
-  loading: boolean;
+  label: string; hexValue: string; pathValue: string; loading: boolean;
 }) {
   const { t } = useTranslation();
   const [mode, setMode]   = useState<'hex' | 'path'>('hex');
   const [copied, setCopied] = useState(false);
-
   const display = mode === 'hex' ? hexValue : pathValue;
 
   function copy() {
@@ -129,260 +113,214 @@ function CredentialRow({
 
   return (
     <div className="bg-[#1c1c1e] border border-white/[0.06] rounded-2xl p-[14px] flex flex-col gap-[10px]">
-      {/* Header row */}
       <div className="flex items-center justify-between gap-[8px]">
-        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">
-          {label}
-        </span>
-
+        <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
         <div className="flex items-center gap-[8px]">
-          {/* HEX / PATH pill */}
           <div className="flex items-center bg-[#121212] rounded-md border border-white/[0.06] overflow-hidden text-[9px] font-mono leading-none">
-            <button
-              onClick={() => setMode('hex')}
-              className={`px-[7px] py-[4px] transition-colors ${
-                mode === 'hex'
-                  ? 'bg-[#DA9526]/15 text-[#DA9526]'
-                  : 'text-gray-600 hover:text-gray-400'
-              }`}
-            >
-              HEX
-            </button>
+            <button onClick={() => setMode('hex')} className={`px-[7px] py-[4px] transition-colors ${mode === 'hex' ? 'bg-[#DA9526]/15 text-[#DA9526]' : 'text-gray-600 hover:text-gray-400'}`}>HEX</button>
             <div className="w-px h-[10px] bg-white/[0.06]" />
-            <button
-              onClick={() => setMode('path')}
-              className={`px-[7px] py-[4px] transition-colors ${
-                mode === 'path'
-                  ? 'bg-[#DA9526]/15 text-[#DA9526]'
-                  : 'text-gray-600 hover:text-gray-400'
-              }`}
-            >
-              PATH
-            </button>
+            <button onClick={() => setMode('path')} className={`px-[7px] py-[4px] transition-colors ${mode === 'path' ? 'bg-[#DA9526]/15 text-[#DA9526]' : 'text-gray-600 hover:text-gray-400'}`}>PATH</button>
           </div>
-
-          <button
-            onClick={copy}
-            disabled={!display}
-            className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30"
-            title={t('common.copy')}
-          >
-            {copied
-              ? <Check size={13} strokeWidth={2.5} className="text-[#DA9526]" />
-              : <Copy size={13} strokeWidth={2} />
-            }
+          <button onClick={copy} disabled={!display} className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30" title={t('common.copy')}>
+            {copied ? <Check size={13} strokeWidth={2.5} className="text-[#DA9526]" /> : <Copy size={13} strokeWidth={2} />}
           </button>
         </div>
       </div>
-
-      {/* Value */}
-      <div
-        className="text-[10px] font-mono text-gray-400 break-all leading-[1.65] max-h-[64px] overflow-y-auto"
-      >
-        {loading
-          ? <Skeleton className="h-[10px] w-full" />
-          : display || <span className="text-gray-600">—</span>
-        }
+      <div className="text-[10px] font-mono text-gray-400 break-all leading-[1.65] max-h-[64px] overflow-y-auto">
+        {loading ? <Skeleton className="h-[10px] w-full" /> : display || <span className="text-gray-600">—</span>}
       </div>
     </div>
   );
 }
 
-// ── Editable row — same row framing as CopyRow, but with an input body ───────
+// ── Editable row ──────────────────────────────────────────────────────────────
 
 function EditableRow({
-  label,
-  sub,
-  value,
-  placeholder,
-  onChange,
-  onBlur,
-  error,
-  warning,
-  last,
-  onAction,
-  actionIcon: ActionIcon,
-  actionLoading,
-  actionDisabled,
-  actionSuccess,
+  label, sub, value, placeholder, onChange, onBlur, error, warning, last,
 }: {
-  label: string;
-  sub?: string;
-  value: string;
-  placeholder?: string;
-  onChange: (v: string) => void;
-  onBlur?: () => void;
-  error?: string;
-  warning?: string;
-  last?: boolean;
-  onAction?: () => void;
-  actionIcon?: any;
-  actionLoading?: boolean;
-  actionDisabled?: boolean;
-  actionSuccess?: boolean;
+  label: string; sub?: string; value: string; placeholder?: string;
+  onChange: (v: string) => void; onBlur?: () => void;
+  error?: string; warning?: string; last?: boolean;
 }) {
-  const { t } = useTranslation();
   return (
     <div className={`px-[16px] py-[12px] ${last ? '' : 'border-b border-white/[0.04]'}`}>
       <div className="flex flex-col gap-[2px] mb-[8px]">
         <span className="text-gray-400 text-[10px] font-label uppercase tracking-[0.08em]">{label}</span>
         {sub && <span className="text-gray-500 text-[10px] leading-[1.5]">{sub}</span>}
       </div>
-      <div className="relative">
-        <input
-          type="text"
-          value={value}
-          placeholder={placeholder}
-          onChange={e => onChange(e.target.value)}
-          onBlur={onBlur}
-          onKeyDown={e => e.key === 'Enter' && onAction && !actionDisabled && onAction()}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          className={`w-full bg-[#121212] rounded-lg border px-[12px] py-[9px] text-[12px] font-mono text-gray-200 placeholder:text-gray-500 outline-none caret-[#DA9526] transition-colors cursor-pointer focus:cursor-text ${onAction ? 'pr-[40px]' : ''} ${
-            error
-              ? 'border-red-500/60 focus:border-red-500'
-              : warning
-                ? 'border-amber-500/40 focus:border-amber-500/60'
-                : 'border-white/[0.04] hover:border-white/[0.1] focus:border-[#DA9526]/40'
-          }`}
-        />
-        {onAction && (!actionDisabled || actionLoading || actionSuccess) && (
-          <button
-            onClick={onAction}
-            disabled={actionLoading || actionSuccess}
-            className={`absolute right-[6px] top-1/2 -translate-y-1/2 w-[28px] h-[28px] rounded-lg transition-all flex items-center justify-center text-black shadow-[0_4px_12px_rgba(218,149,38,0.3)] active:scale-[0.9] cursor-pointer disabled:cursor-default ${
-              actionSuccess ? 'bg-emerald-500 shadow-[0_4px_12px_rgba(16,185,129,0.3)]' : 'bg-[#DA9526] hover:bg-[#c8871f]'
-            }`}
-            title={t('common.apply')}
-          >
-            {actionLoading ? (
-              <Loader size={14} className="animate-spin" />
-            ) : actionSuccess ? (
-              <Check size={16} strokeWidth={4} />
-            ) : ActionIcon ? (
-              <ActionIcon size={16} strokeWidth={3} />
-            ) : (
-              <span className="text-[10px] font-bold uppercase">{t('common.apply')}</span>
-            )}
-          </button>
-        )}
-      </div>
-      {error && <span className="block text-red-400 text-[11px] mt-[6px]">{error}</span>}
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        onBlur={onBlur}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        className={`w-full bg-[#121212] rounded-lg border px-[12px] py-[9px] text-[12px] font-mono text-gray-200 placeholder:text-gray-500 outline-none caret-[#DA9526] transition-colors cursor-pointer focus:cursor-text ${
+          error
+            ? 'border-red-500/60 focus:border-red-500'
+            : warning
+              ? 'border-amber-500/40 focus:border-amber-500/60'
+              : 'border-white/[0.04] hover:border-white/[0.1] focus:border-[#DA9526]/40'
+        }`}
+      />
+      {error   && <span className="block text-red-400   text-[11px] mt-[6px]">{error}</span>}
       {!error && warning && <span className="block text-amber-400 text-[11px] mt-[6px]">{warning}</span>}
     </div>
   );
 }
 
+// ── Form state ────────────────────────────────────────────────────────────────
+
+interface NetworkForm {
+  alias:      string
+  nodePublic: boolean
+  nodeIP:     string
+  restCors:   string
+  rpcListen:  string   // preserved from DB, not shown in UI
+  restListen: string   // preserved from DB, not shown in UI
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function Network() {
+export default function Network({ info }: { info: InfoResponse | undefined }) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { data: info } = useInfo();
-  const {
-    nodePublic, setNodePublic,
-    nodeIP, setNodeIP,
-    restCors, setRestCors,
-    aliasName, setAliasName,
-    nodeDir, rpcListen, restListen,
-    pubKey, saveToDB,
-  } = useNodeConfigStore();
+  const { nodeDir, pubKey, setAliasName } = useNodeConfigStore();
   const { setAutoUnlockPending, setIsRestarting } = useNodeSessionStore();
-
-  const [localAlias, setLocalAlias] = useState(aliasName);
-  const [aliasLoading, setAliasLoading] = useState(false);
-  const [aliasSuccess, setAliasSuccess] = useState(false);
-  const [aliasError, setAliasError] = useState<string | undefined>(undefined);
-  const isAliasDirty = localAlias !== aliasName;
-
-  async function handleSaveAlias() {
-    const trimmed = localAlias.trim();
-    if ((trimmed === aliasName && !isAliasDirty) || aliasLoading || aliasSuccess) return;
-    
-    setAliasLoading(true);
-    setAliasError(undefined);
-    setAliasSuccess(false);
-    
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 800));
-    
-    // Demonstration of inline error
-    if (trimmed.toLowerCase().includes('error')) {
-      setAliasError(t('main.errors.alias_invalid') || 'Invalid node alias');
-      setAliasLoading(false);
-      return;
-    }
-    
-    setAliasName(trimmed);
-    await saveToDB();
-    setAliasLoading(false);
-    setAliasSuccess(true);
-    
-    // Reset success state after 2 seconds
-    setTimeout(() => setAliasSuccess(false), 2000);
-  }
-
-  useEffect(() => {
-    setLocalAlias(aliasName);
-  }, [aliasName]);
-
-  // Sync settings to DB when they change
-  useEffect(() => {
-    if (pubKey) {
-      saveToDB();
-    }
-  }, [nodePublic, nodeIP, restCors, pubKey, saveToDB]);
-
-  const ipError = nodePublic && nodeIP !== '' && !isValidIP(nodeIP);
-  const ipMissing = nodePublic && nodeIP === '';
-  const corsError = !isValidCORS(restCors);
-
-  // Credentials come from /api/info — hex values are populated once the wallet
-  // is unlocked, paths are always present once the node is configured.
-  const credsLoading = info === undefined;
-
-  const isNodeActive = info?.state === 'ready' || info?.state === 'syncing' || info?.state === 'scanning' || info?.state === 'block' || info?.state === 'tx' || info?.state === 'locked';
-  const isDirty = !!info?.nodeRunning && isNodeActive && (
-    info.nodePublic !== nodePublic ||
-    (nodePublic && info.externalIP !== nodeIP) ||
-    info.restCors !== restCors ||
-    info.nodeAlias !== aliasName
-  );
-
-  const [restartArmed, setRestartArmed] = useState(false);
-  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const navigate = useNavigate();
 
-  function handleRestart() {
-    // Ensure latest local alias is synced to the store before we save/restart.
-    if (isAliasDirty) setAliasName(localAlias.trim());
+  const [form, setForm] = useState<NetworkForm | null>(null);
+  // Tracks what's currently saved in DB so we can detect unsaved changes.
+  const savedFormRef = useRef<NetworkForm | null>(null);
 
-    // Persist latest settings, then immediately flip to the loader page.
-    // We don't await the restart API — Node.tsx owns the isRestarting
-    // lifecycle and will clear the flag once the daemon is confirmed running.
-    saveToDB().then(() => {
-      setAutoUnlockPending(true);
-      setIsRestarting(true);
+  // Load form from DB once on mount (or when nodeDir changes).
+  useEffect(() => {
+    if (!nodeDir) return;
+    setForm(null);
+    fetcher<{
+      alias: string; nodePublic: boolean; nodeIP: string;
+      restCors: string; rpcListen: string; restListen: string;
+    }>(`/api/node/config?dir=${encodeURIComponent(nodeDir)}`)
+      .then(cfg => {
+        const loaded: NetworkForm = {
+          alias:      cfg.alias      || '',
+          nodePublic: cfg.nodePublic ?? true,
+          nodeIP:     cfg.nodeIP     || '',
+          restCors:   cfg.restCors   || DEFAULT_REST_CORS,
+          rpcListen:  cfg.rpcListen  || DEFAULT_RPC_LISTEN,
+          restListen: cfg.restListen || DEFAULT_REST_LISTEN,
+        };
+        savedFormRef.current = loaded;
+        setForm(loaded);
+      })
+      .catch(() => {});
+  }, [nodeDir]);
 
-      // Navigate immediately — user sees the loader/spinner page right away.
-      navigate('/node');
-
-      // The server's RestartNode() is blocking — the 204 arrives only after the
-      // daemon has fully stopped and restarted. Clear isRestarting on both
-      // success and failure so Node.tsx never gets stuck in the spinner state.
-      post('/api/node/restart', {})
-        .then(() => setIsRestarting(false))
-        .catch(() => setIsRestarting(false));
-    });
+  function update<K extends keyof NetworkForm>(key: K, value: NetworkForm[K]) {
+    setForm(f => f ? { ...f, [key]: value } : f);
   }
 
+  // Auto-save to DB (debounced) when node is NOT running and form differs from DB.
+  // When node IS running, changes are only persisted via Apply & Restart.
+  useEffect(() => {
+    if (!form || !nodeDir || info?.nodeRunning) return;
+    if (JSON.stringify(form) === JSON.stringify(savedFormRef.current)) return;
+    const timer = setTimeout(() => {
+      post('/api/node/config', {
+        pubKey, dir: nodeDir,
+        alias:      form.alias,
+        nodePublic: form.nodePublic,
+        externalIP: form.nodeIP,
+        restCors:   form.restCors,
+        rpcListen:  form.rpcListen,
+        restListen: form.restListen,
+      }).then(() => { savedFormRef.current = form; }).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [form, info?.nodeRunning, nodeDir, pubKey]);
+
+  // isDirty: form vs running daemon — requires node to be active.
+  const isDirty = useMemo(() => {
+    if (!form || !info?.nodeRunning) return false;
+    const state = info.state ?? '';
+    const isActive = ['ready', 'syncing', 'scanning', 'block', 'tx', 'locked'].includes(state);
+    if (!isActive) return false;
+    return (
+      info.nodePublic !== form.nodePublic ||
+      (form.nodePublic && info.externalIP !== form.nodeIP) ||
+      info.restCors !== form.restCors ||
+      info.nodeAlias !== form.alias
+    );
+  }, [form, info]);
+
+  const ipError   = !!form?.nodePublic && form.nodeIP !== '' && !isValidIP(form.nodeIP);
+  const ipMissing = !!form?.nodePublic && form.nodeIP === '';
+  const corsError = !!form && !isValidCORS(form.restCors);
+
+  const [restartArmed, setRestartArmed] = useState(false);
+  const [restarting,   setRestarting]   = useState(false);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleApplyAndRestart() {
+    if (!form || restarting) return;
+
+    const issues: string[] = [];
+    if (ipError)   issues.push(t('network.ip_error') || 'Invalid IP format');
+    if (ipMissing) issues.push(t('network.ip_missing') || 'External IP required for public nodes');
+    if (corsError) issues.push(t('validation.invalid_cors') || 'Invalid CORS format');
+    if (issues.length > 0) {
+      toast({ variant: 'destructive', title: t('network.errors.invalid_config') || 'Configuration Issue', description: issues.join('. ') });
+      return;
+    }
+
+    if (!restartArmed) {
+      setRestartArmed(true);
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = setTimeout(() => setRestartArmed(false), 3000);
+      return;
+    }
+
+    setRestarting(true);
+    try {
+      await post('/api/node/config', {
+        pubKey, dir: nodeDir,
+        alias:      form.alias,
+        nodePublic: form.nodePublic,
+        externalIP: form.nodeIP,
+        restCors:   form.restCors,
+        rpcListen:  form.rpcListen,
+        restListen: form.restListen,
+      });
+      savedFormRef.current = form;
+      setAliasName(form.alias);
+
+      setAutoUnlockPending(true);
+      setIsRestarting(true);
+      navigate('/node');
+
+      // Fire-and-forget: Node.tsx watches the actual daemon state transition
+      // and clears isRestarting when the cycle is done. Only clear on hard
+      // failure so the spinner isn't stuck if the API call itself errors out.
+      post('/api/node/restart', {}).catch(() => {
+        setIsRestarting(false);
+        setRestarting(false);
+      });
+    } catch (err) {
+      setRestarting(false);
+      setRestartArmed(false);
+      toast({ variant: 'destructive', title: String(err) });
+    }
+  }
+
+  const credsLoading = info === undefined;
+  const loading = form === null;
 
   return (
     <div className="flex flex-col gap-[12px]">
 
-      {/* ── Dirty state warning ───────────────────────────────────────────── */}
+      {/* ── Dirty state warning ─────────────────────────────────────────────── */}
       {isDirty && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-[16px] py-[14px] flex flex-col gap-[10px]"
              style={{ animation: 'fadeSlideIn 200ms ease-out' }}>
@@ -395,38 +333,17 @@ export default function Network() {
             </p>
           </div>
           <button
-            onClick={() => {
-              // Validation
-              const issues: string[] = [];
-              if (ipError) issues.push(t('network.ip_error') || 'Invalid IP format');
-              if (ipMissing) issues.push(t('network.ip_missing') || 'External IP is required for public nodes');
-              if (corsError) issues.push(t('validation.invalid_cors') || 'Invalid CORS format');
-              if (isAliasDirty && localAlias.trim().length === 0) issues.push(t('validation.required') || 'Alias is required');
-
-              if (issues.length > 0) {
-                toast({
-                  variant: 'destructive',
-                  title: t('network.errors.invalid_config') || 'Configuration Issue',
-                  description: issues.join('. ')
-                });
-                return;
-              }
-
-              if (restartArmed) {
-                handleRestart();
-              } else {
-                setRestartArmed(true);
-                if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-                restartTimerRef.current = setTimeout(() => setRestartArmed(false), 3000);
-              }
-            }}
+            onClick={handleApplyAndRestart}
+            disabled={restarting}
             className={`w-full h-[40px] font-semibold font-label text-[12px] rounded-lg flex items-center justify-center gap-[8px] transition-all duration-200 ${
               restartArmed
                 ? 'bg-amber-500 text-black animate-pulse scale-[1.01]'
                 : 'bg-amber-500 text-black hover:bg-amber-400 active:scale-[0.98]'
             }`}
           >
-            {restartArmed ? (
+            {restarting ? (
+              <Loader size={14} className="animate-spin" />
+            ) : restartArmed ? (
               <span>{t('network.restart.confirm_action') || 'Click again to confirm restart'}</span>
             ) : (
               <>
@@ -438,69 +355,77 @@ export default function Network() {
         </div>
       )}
 
+      {/* ── Group 1: Identity ──────────────────────────────────────────────── */}
       <GroupHeader label={t('network.group.identity')} />
       <div className="bg-[#1c1c1e] border border-white/[0.06] rounded-2xl overflow-hidden">
-        <EditableRow
-          label={t('config.alias')}
-          sub={localAlias === '' ? t('config.alias_default_hint') : undefined}
-          value={localAlias}
-          placeholder={t('main.default_alias')}
-          onChange={v => { setLocalAlias(v); setAliasError(undefined); }}
-          onAction={handleSaveAlias}
-          actionIcon={Check}
-          actionLoading={aliasLoading}
-          actionSuccess={aliasSuccess}
-          actionDisabled={!isAliasDirty || aliasLoading}
-          error={aliasError}
-        />
+        {loading ? (
+          <div className="px-[16px] py-[12px]"><Skeleton className="h-[38px] w-full" /></div>
+        ) : (
+          <EditableRow
+            label={t('config.alias')}
+            sub={form.alias === '' ? t('config.alias_default_hint') : undefined}
+            value={form.alias}
+            placeholder={t('main.default_alias')}
+            onChange={v => update('alias', v)}
+          />
+        )}
         <CopyRow label={t('network.pubkey')}   value={info?.nodePubkey ?? ''} />
         <CopyRow label={t('network.data_dir')} value={info?.nodeDir    ?? ''} last />
       </div>
 
-      {/* ── Group 2: Public visibility ──────────────────────────────────── */}
+      {/* ── Group 2: Public visibility ──────────────────────────────────────── */}
       <GroupHeader label={t('network.group.visibility')} />
       <div className="bg-[#1c1c1e] border border-white/[0.06] rounded-2xl overflow-hidden">
-        <div className={`flex items-center justify-between gap-[16px] px-[16px] py-[14px] ${nodePublic ? 'border-b border-white/[0.04]' : ''}`}>
-          <div className="flex-1 min-w-0">
-            <p className="text-white text-[13px] font-label">{t('network.public_node')}</p>
-            <p className="text-gray-400 text-[11px] mt-[2px] leading-[1.5]">
-              {t('network.public_node_sub')}
-            </p>
-          </div>
-          <Toggle value={nodePublic} onChange={setNodePublic} />
-        </div>
-        {nodePublic && (
-          <EditableRow
-            label={t('network.public_ip')}
-            sub={t('network.public_ip_sub')}
-            placeholder={t('network.public_ip_ph')}
-            value={nodeIP}
-            onChange={setNodeIP}
-            onBlur={() => {
-              const trimmed = nodeIP.trim();
-              if (trimmed && !trimmed.includes(':')) {
-                if (/^(\d{1,3}\.){3}\d{1,3}$/.test(trimmed)) setNodeIP(trimmed + ':5521');
-                else if (/^\[[0-9a-fA-F:]+\]$/.test(trimmed)) setNodeIP(trimmed + ':5521');
-              }
-            }}
-            error={ipError ? t('network.ip_error') : undefined}
-            warning={ipMissing ? t('network.ip_missing') : undefined}
-            last
-          />
+        {loading ? (
+          <div className="px-[16px] py-[14px]"><Skeleton className="h-[24px] w-full" /></div>
+        ) : (
+          <>
+            <div className={`flex items-center justify-between gap-[16px] px-[16px] py-[14px] ${form.nodePublic ? 'border-b border-white/[0.04]' : ''}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-[13px] font-label">{t('network.public_node')}</p>
+                <p className="text-gray-400 text-[11px] mt-[2px] leading-[1.5]">{t('network.public_node_sub')}</p>
+              </div>
+              <Toggle value={form.nodePublic} onChange={v => update('nodePublic', v)} />
+            </div>
+            {form.nodePublic && (
+              <EditableRow
+                label={t('network.public_ip')}
+                sub={t('network.public_ip_sub')}
+                placeholder={t('network.public_ip_ph')}
+                value={form.nodeIP}
+                onChange={v => update('nodeIP', v)}
+                onBlur={() => {
+                  if (!form) return;
+                  const trimmed = form.nodeIP.trim();
+                  if (trimmed && !trimmed.includes(':')) {
+                    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(trimmed)) update('nodeIP', trimmed + ':5521');
+                    else if (/^\[[0-9a-fA-F:]+\]$/.test(trimmed)) update('nodeIP', trimmed + ':5521');
+                  }
+                }}
+                error={ipError ? t('network.ip_error') : undefined}
+                warning={ipMissing ? t('network.ip_missing') : undefined}
+                last
+              />
+            )}
+          </>
         )}
       </div>
 
-      {/* ── Group 3: Endpoints & CORS ───────────────────────────────────── */}
+      {/* ── Group 3: Endpoints & CORS ───────────────────────────────────────── */}
       <GroupHeader label={t('network.group.endpoints')} />
       <div className="bg-[#1c1c1e] border border-white/[0.06] rounded-2xl overflow-hidden">
-        <EditableRow
-          label={t('network.cors')}
-          sub={t('network.cors_sub')}
-          placeholder={t('network.cors_ph')}
-          value={restCors}
-          onChange={setRestCors}
-          error={corsError ? t('validation.invalid_cors') : undefined}
-        />
+        {loading ? (
+          <div className="px-[16px] py-[12px]"><Skeleton className="h-[38px] w-full" /></div>
+        ) : (
+          <EditableRow
+            label={t('network.cors')}
+            sub={t('network.cors_sub')}
+            placeholder={t('network.cors_ph')}
+            value={form.restCors}
+            onChange={v => update('restCors', v)}
+            error={corsError ? t('validation.invalid_cors') : undefined}
+          />
+        )}
         <CopyRow label={t('network.grpc')} value={info?.rpcAddress   ?? ''} />
         <CopyRow label={t('network.rest')} value={info?.restEndpoint ?? ''} last />
       </div>
@@ -509,7 +434,7 @@ export default function Network() {
         {t('network.restart_hint')}
       </p>
 
-      {/* ── Group 4: Credentials ────────────────────────────────────────── */}
+      {/* ── Group 4: Credentials ────────────────────────────────────────────── */}
       <GroupHeader label={t('network.group.credentials')} />
       <CredentialRow
         label={t('network.macaroon')}

@@ -34,26 +34,30 @@ export function TransitionOverlay() {
   if (!isActive) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#121212]/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 overflow-hidden">
-      {/* Centralized Ambient Glow (Matches App.tsx) */}
+    <div className="fixed inset-0 z-[9999] bg-[#121212]/60 backdrop-blur-sm flex items-center justify-center overflow-hidden animate-in fade-in duration-500">
+      {/* Ambient Glow */}
       <div
         className="absolute inset-0 pointer-events-none opacity-30"
         style={{
           background: `radial-gradient(ellipse 70% 60% at 50% 30%, rgba(218,149,38,0.4) 0%, transparent 70%)`,
         }}
       />
-      
-      {/* Planetary System */}
-      <motion.div 
+
+      {/* Spinner — sole flex child so its center aligns with screen center.
+          scale animates from/to the screen center, not an offset group midpoint. */}
+      <motion.div
         initial={{ scale: 0.3, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className="mb-12"
       >
         <KineticSpinner size={220} />
       </motion.div>
 
-      <div className="flex flex-col gap-3 max-w-[320px] relative z-20">
+      {/* Labels pinned below the spinner (spinner radius = 110px, +18px gap) */}
+      <div
+        className="absolute left-0 right-0 flex flex-col items-center gap-3 px-6 text-center z-20"
+        style={{ top: 'calc(50% + 128px)' }}
+      >
         <h2 className="text-white text-xl font-label font-bold tracking-tight">
           {label}
         </h2>
@@ -63,13 +67,6 @@ export function TransitionOverlay() {
           </p>
         )}
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

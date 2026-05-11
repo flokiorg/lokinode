@@ -44,10 +44,11 @@ export const en = {
   'node.status.active':      'Node Active',
   'node.status.error':       'Node Error',
   'node.status.locking_wallet': 'Locking wallet',
-  'node.status.sub.locked':  'Tap to unlock wallet',
-  'node.status.sub.locking': 'Restarting daemon · unlock will open shortly',
-  'node.status.sub.restarting': 'Restarting daemon…',
-  'node.status.sub.retrying':   'Daemon stopped · tap to retry',
+  'node.status.sub.locked':    'Tap to unlock wallet',
+  'node.status.sub.locking':   'Restarting daemon · unlock will open shortly',
+  'node.status.sub.restarting':'Restarting daemon…',
+  'node.status.sub.stopping':  'Waiting for daemon to exit…',
+  'node.status.sub.retrying':  'Daemon stopped · tap to retry',
 
   // Node page — sync sub-labels
   'node.sync.init':     'Initializing daemon…',
@@ -122,6 +123,7 @@ export const en = {
   'main.create_new_sub':     'Initialize a fresh environment.',
   'main.open_existing':      'Open Existing Node',
   'main.open_existing_sub':  'Resume from an existing node environment.',
+  'main.browse_folder':      'Choose a Folder',
   'main.status.offline':     'Node Offline',
   'main.status.starting':    'Starting',
   'main.power_hint':         'Tap to power on',
@@ -331,6 +333,15 @@ export const en = {
   'node.errors.port_conflict': 'Port conflict — another process is using the same port.',
   'node.errors.rate_limited':   'Too many attempts — please wait a moment.',
   'node.errors.daemon_not_ready': 'Daemon is not ready.',
+  'node.errors.missing_files':    'Node data files are missing — the directory may have been moved or deleted.',
+  'node.errors.corrupt_cert':     'TLS certificate is corrupted — the node may need to be recreated.',
+  'node.errors.connection_refused': 'Could not connect to the node daemon — check for port conflicts.',
+  'node.errors.timeout':          'Node daemon timed out during startup.',
+
+  'node.status.no_wallet':        'Wallet Missing',
+  'node.status.sub.no_wallet':    'Wallet database not found. Go back and recreate this node.',
+
+  'common.back_home': 'Back to Home',
 
   'language.label': 'Language',
 
@@ -438,6 +449,7 @@ export const ru: Translations = {
   'node.status.sub.locked':     'Нажмите для разблокировки',
   'node.status.sub.locking':    'Перезапуск демона · окно разблокировки скоро откроется',
   'node.status.sub.restarting': 'Перезапуск…',
+  'node.status.sub.stopping':   'Ожидание завершения демона…',
   'node.status.sub.retrying':   'Демон остановлен · нажмите для повтора',
   'node.sync.init':     'Инициализация…',
   'node.sync.none':     'Запуск…',
@@ -501,6 +513,7 @@ export const ru: Translations = {
   'main.create_new_sub':     'Инициализировать новую среду.',
   'main.open_existing':      'Открыть существующий узел',
   'main.open_existing_sub':  'Возобновить работу из существующей среды узла.',
+  'main.browse_folder':      'Выбрать папку',
   'main.status.offline':     'Узел офлайн',
   'main.status.starting':    'Запуск',
   'main.power_hint':         'Нажмите для запуска',
@@ -751,6 +764,14 @@ export const ru: Translations = {
   'onboard.errors.hex_required':    'Введите hex ключ для восстановления.',
   'onboard.errors.wallet_exists':   'В этой среде уже есть кошелёк. Выберите пустую среду или восстановите в неё.',
   'onboard.errors.seed_gen_failed': 'Не удалось сгенерировать фразу восстановления. Попробуйте еще раз.',
+
+  'node.errors.missing_files':      'Файлы данных узла отсутствуют — каталог мог быть перемещён или удалён.',
+  'node.errors.corrupt_cert':       'TLS-сертификат повреждён — возможно, узел нужно пересоздать.',
+  'node.errors.connection_refused': 'Не удалось подключиться к демону узла — проверьте конфликты портов.',
+  'node.errors.timeout':            'Демон узла завис при запуске.',
+  'node.status.no_wallet':          'Кошелёк отсутствует',
+  'node.status.sub.no_wallet':      'База данных кошелька не найдена. Вернитесь и пересоздайте узел.',
+  'common.back_home':               'На главную',
 };
 
 // ── Chinese (Simplified) ──────────────────────────────────────────────────────
@@ -782,6 +803,7 @@ export const zh: Translations = {
   'node.status.sub.locked':     '点击解锁钱包',
   'node.status.sub.locking':    '正在重启守护进程 · 解锁窗口即将打开',
   'node.status.sub.restarting': '正在重启…',
+  'node.status.sub.stopping':   '等待守护进程退出…',
   'node.status.sub.retrying':   '守护进程停止 · 点击重试',
   'node.sync.init':     '初始化…',
   'node.sync.none':     '启动中…',
@@ -845,6 +867,7 @@ export const zh: Translations = {
   'main.create_new_sub':     '初始化全新环境。',
   'main.open_existing':      '打开现有节点',
   'main.open_existing_sub':  '从现有的节点环境恢复。',
+  'main.browse_folder':      '选择文件夹',
   'main.status.offline':     '节点离线',
   'main.status.starting':    '启动中',
   'main.power_hint':         '点击启动',
@@ -1095,6 +1118,14 @@ export const zh: Translations = {
   'onboard.errors.hex_required':    '请输入 hex 密钥以恢复。',
   'onboard.errors.wallet_exists':   '在此环境下已存在钱包。请选择空环境或恢复到其中。',
   'onboard.errors.seed_gen_failed': '无法生成恢复短语。请再试一次。',
+
+  'node.errors.missing_files':      '节点数据文件丢失 — 目录可能已被移动或删除。',
+  'node.errors.corrupt_cert':       'TLS 证书已损坏 — 可能需要重新创建节点。',
+  'node.errors.connection_refused': '无法连接到节点守护进程 — 请检查端口冲突。',
+  'node.errors.timeout':            '节点守护进程启动超时。',
+  'node.status.no_wallet':          '钱包缺失',
+  'node.status.sub.no_wallet':      '未找到钱包数据库。请返回并重新创建此节点。',
+  'common.back_home':               '返回主页',
 };
 
 // ── Spanish ───────────────────────────────────────────────────────────────────
@@ -1126,6 +1157,7 @@ export const es: Translations = {
   'node.status.sub.locked':     'Toca para desbloquear',
   'node.status.sub.locking':    'Reiniciando daemon · el desbloqueo se abrirá en breve',
   'node.status.sub.restarting': 'Reiniciando…',
+  'node.status.sub.stopping':   'Esperando que el daemon finalice…',
   'node.status.sub.retrying':   'Daemon detenido · toca para reintentar',
   'node.sync.init':     'Inicializando…',
   'node.sync.none':     'Iniciando…',
@@ -1189,6 +1221,7 @@ export const es: Translations = {
   'main.create_new_sub':     'Inicializar un entorno nuevo.',
   'main.open_existing':      'Abrir nodo existente',
   'main.open_existing_sub':  'Resume desde un entorno de nodo existente.',
+  'main.browse_folder':      'Elegir carpeta',
   'main.status.offline':     'Nodo Desconectado',
   'main.status.starting':    'Iniciando',
   'main.power_hint':         'Toca para iniciar',
@@ -1439,6 +1472,14 @@ export const es: Translations = {
   'onboard.errors.hex_required':    'Introduce una clave privada hex para restaurar.',
   'onboard.errors.wallet_exists':   'Ya existe una billetera en esta carpeta. Elige una vacía o restaura en ella.',
   'onboard.errors.seed_gen_failed': 'Error al generar la frase de recuperación. Inténtalo de nuevo.',
+
+  'node.errors.missing_files':      'Faltan archivos de datos del nodo — el directorio puede haber sido movido o eliminado.',
+  'node.errors.corrupt_cert':       'El certificado TLS está corrupto — puede ser necesario recrear el nodo.',
+  'node.errors.connection_refused': 'No se pudo conectar al demonio del nodo — comprueba los conflictos de puertos.',
+  'node.errors.timeout':            'El demonio del nodo superó el tiempo de espera al iniciarse.',
+  'node.status.no_wallet':          'Cartera no encontrada',
+  'node.status.sub.no_wallet':      'Base de datos de cartera no encontrada. Vuelve atrás y recrea este nodo.',
+  'common.back_home':               'Volver al inicio',
 };
 
 export const resources: Record<Lang, Translations> = { en, ru, zh, es };

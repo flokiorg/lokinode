@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Power, Lock, Zap, Loader, Loader2, Check, Copy, RefreshCw, X, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Power, Lock, Zap, Loader, Loader2, Check, Copy, RefreshCw, X, AlertCircle, Eye, EyeOff, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from '@/i18n/context';
 import { useToast } from '@/hooks/useToast';
@@ -29,6 +29,19 @@ const STATUS_NO_WALLET = 'noWallet';
 const STATUS_DOWN      = 'down';
 
 type ActiveTab = 'overview' | 'history' | 'receive' | 'send';
+
+function friendlyDaemonError(raw: string, t: (k: string) => string): string {
+  const s = raw.toLowerCase();
+  if (s.includes('no such file or directory') || s.includes('not found'))
+    return t('node.errors.missing_files');
+  if (s.includes('failed to parse cert') || (s.includes('tls') && s.includes('cert')))
+    return t('node.errors.corrupt_cert');
+  if (s.includes('connection refused') || s.includes('dial tcp'))
+    return t('node.errors.connection_refused');
+  if (s.includes('deadline exceeded') || s.includes('timeout'))
+    return t('node.errors.timeout');
+  return raw;
+}
 
 function formatUptime(start: number): string {
   const secs = Math.floor((Date.now() / 1000) - start);
@@ -64,17 +77,19 @@ function Node() {
   const [showUnlock, setShowUnlock] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [pwdError, setPwdError] = useState(false);
-  const [restarting, setRestarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
   const [startTime] = useState(() => Math.floor(Date.now() / 1000));
-  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigatingAwayRef = useRef(false);
   // Tracks that the restart cycle visibly started (node went down or hit a
   // transient boot state). Prevents clearing isRestarting from stale SWR
   // cache when the pre-restart state already happens to be "locked".
   const seenRestartProgressRef = useRef(false);
+  // Guards against rapid double-clicks on the Retry button. The state-based
+  // guard in handleRestart() relies on React having re-rendered the optimistic
+  // 'starting' value between clicks, which isn't guaranteed under load.
+  const restartInFlightRef = useRef(false);
 
   // drag-to-dismiss for unlock sheet
   const [sheetDrag, setSheetDrag] = useState(0);
@@ -131,6 +146,7 @@ function Node() {
     try {
       await post('/api/node/stop', {});
       mutateInfo(cur => cur ? { ...cur, nodeRunning: false, state: STATUS_DOWN } : cur, false);
+      setIsStopping(false);
     } catch (err) {
       setIsStopping(false);
       setUserStopped(false);
@@ -165,21 +181,43 @@ function Node() {
     }
   }
 
+  // ── Go home (from noWallet) — mirrors handleStop's session bookkeeping so
+  // Main.tsx sees an intentional shutdown and doesn't try to auto-restart.
+  async function handleGoHome() {
+    setUserStopped(true);
+    clearSession();
+    try { await post('/api/node/stop', {}); } catch { /* ignore */ }
+    navigate('/', { replace: true });
+  }
+
   // ── Restart (from down)
   async function handleRestart() {
-    if (restarting) return;
-    setRestarting(true);
+    // Two-layer guard against double-invocation:
+    //   1. state-based — prevents calling Retry from any non-down screen.
+    //   2. ref-based   — prevents two synchronous clicks racing through the
+    //      gap between mutateInfo() and the next React render.
+    if (state !== STATUS_DOWN || restartInFlightRef.current) return;
+    restartInFlightRef.current = true;
+    // Optimistic update to 'starting' — drives phaseKey to 'syncing' immediately
+    // so the user sees the "Starting" screen without waiting for the SWR poll.
+    // The 2s poll naturally drives the rest of the lifecycle; we deliberately
+    // do NOT revalidate after the POST succeeds because the server's state at
+    // that instant is still 'down' (or just-transitioned 'starting') and would
+    // overwrite our optimistic value, flickering the error screen.
+    mutateInfo(cur => cur ? { ...cur, state: 'starting' } : cur, false);
     try {
-      await post('/api/node/stop', {});
-      await post('/api/node/start', {});
-      mutateInfo();
+      await post('/api/node/restart', {});
     } catch (err) {
-      setRestarting(false);
+      // Revert: revalidate so the cache reflects whatever the server actually
+      // has (most likely still 'down').
+      mutateInfo();
       if (err instanceof ApiError && err.status === 429) {
         toast({ variant: 'destructive', title: t('node.errors.rate_limited') });
       } else {
         toast({ variant: 'destructive', title: t('node.errors.restart_failed'), description: String(err) });
       }
+    } finally {
+      restartInFlightRef.current = false;
     }
   }
 
@@ -216,18 +254,14 @@ function Node() {
     // Don't navigate away while a settings-triggered restart is in flight —
     // the daemon is intentionally down and will come back shortly.
     if (isRestarting) return;
+    // Don't navigate while stop is still in-flight — the port isn't released
+    // yet and navigating early lets the user tap power before cleanup finishes.
+    if (isStopping) return;
     if (!navigatingAwayRef.current) {
       navigatingAwayRef.current = true;
       navigate('/', { replace: true });
     }
-  }, [info?.nodeRunning, isLocking, isRestarting]);
-
-  useEffect(() => {
-    if (isNoWallet && !navigatingAwayRef.current) {
-      navigatingAwayRef.current = true;
-      navigate('/create', { replace: true });
-    }
-  }, [isNoWallet]);
+  }, [info?.nodeRunning, isLocking, isRestarting, isStopping]);
 
   // Mark that the restart cycle has visibly started (node down or boot state).
   useEffect(() => {
@@ -248,10 +282,19 @@ function Node() {
     // begin (node went down or entered a transient boot state). This prevents
     // stale SWR cache from triggering the clear the moment we arrive at /node
     // when the pre-restart state happened to already be "locked".
-    if (isRestarting && seenRestartProgressRef.current && (isLocked || isActive)) {
+    // Check `state` directly rather than `isActive` — isActive is always false
+    // while isRestarting is true, so a node that restarts directly to "ready"
+    // (no wallet password) would never clear the restarting flag otherwise.
+    const nodeSettled = info?.nodeRunning && (
+      state === STATUS_LOCKED ||
+      state === STATUS_READY  ||
+      state === STATUS_BLOCK  ||
+      state === STATUS_TX
+    );
+    if (isRestarting && seenRestartProgressRef.current && nodeSettled) {
       setIsRestarting(false);
     }
-  }, [info?.nodeRunning, isRestarting, isLocked, isActive]);
+  }, [info?.nodeRunning, isRestarting, isLocked, isActive, state]);
 
   useEffect(() => {
     if (!isLocked && !isLocking && showUnlock) {
@@ -266,25 +309,24 @@ function Node() {
     }
   }, [showUnlock]);
 
-  useEffect(() => {
-    if (restarting && state !== STATUS_DOWN && state !== '') setRestarting(false);
-  }, [state]);
-
-  useEffect(() => {
-    if (!restarting) {
-      if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
-      return;
-    }
-    restartTimerRef.current = setTimeout(() => {
-      setRestarting(false);
-      toast({ variant: 'destructive', title: t('node.status.error'), description: t('node.errors.start_timeout') });
-    }, 45_000);
-    return () => { if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; } };
-  }, [restarting]);
-
   // ── Phase config ──────────────────────────────────────────────────────────────
-  const syncing    = !isActive && !isLocked && !isDown && !restarting && !isLocking && state !== '' && state !== 'stopped';
-  const phaseKey   = isLocking ? 'locking' : (restarting || isRestarting) ? 'restarting' : isDown ? 'down' : isLocked ? 'locked' : isActive ? 'active' : syncing ? 'syncing' : 'locked';
+  // phaseKey is exhaustive: every observable state maps to a defined phase.
+  // The fallback is 'syncing' rather than 'locked' so an empty/unknown state
+  // (e.g. a transient response missing the state field) shows a neutral
+  // spinner instead of a misleading "Locked" lock icon + unlock prompt.
+  const phaseKey: 'stopping' | 'locking' | 'restarting' | 'down' | 'noWallet' | 'locked' | 'active' | 'syncing' =
+      isStopping   ? 'stopping'
+    : isLocking    ? 'locking'
+    : isRestarting ? 'restarting'
+    : isDown       ? 'down'
+    : isNoWallet   ? 'noWallet'
+    : isLocked     ? 'locked'
+    : isActive     ? 'active'
+    :                'syncing';
+  // syncing is the phase where we render the "Starting/Syncing" spinner and
+  // related sync-progress UI; derive it from phaseKey to keep the predicates
+  // in lock-step (one source of truth).
+  const syncing    = phaseKey === 'syncing';
   const bootStates = new Set(['init', 'starting', 'none', '']);
   const syncingLabel = bootStates.has(state) ? t('node.status.starting') : t('node.status.syncing');
   const syncingSub: Record<string, string> = {
@@ -293,12 +335,14 @@ function Node() {
   };
 
   const phaseConfig = {
-    locked:     { label: t('node.status.locked'),      sub: t('node.status.sub.locked'),      glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
-    locking:    { label: t('node.status.locking_wallet'), sub: t('node.status.sub.locking'),  glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
-    syncing:    { label: syncingLabel,                  sub: syncingSub[state] ?? t('node.sync.default'), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
-    restarting: { label: t('node.status.restarting'),  sub: t('node.status.sub.restarting'),  glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
-    active:     { label: t('node.status.active'),       sub: formatUptime(startTime),           glowColor: 'rgba(218,149,38,0.28)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
-    down:       { label: t('node.status.error'),        sub: t('node.status.sub.retrying'),    glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
+    stopping:   { label: t('node.stopping'),            sub: t('node.status.sub.stopping'),    glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
+    locked:     { label: t('node.status.locked'),       sub: t('node.status.sub.locked'),      glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
+    locking:    { label: t('node.status.locking_wallet'), sub: t('node.status.sub.locking'),   glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
+    syncing:    { label: syncingLabel,                   sub: syncingSub[state] ?? t('node.sync.default'), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
+    restarting: { label: t('node.status.restarting'),   sub: t('node.status.sub.restarting'),  glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
+    active:     { label: t('node.status.active'),        sub: formatUptime(startTime),          glowColor: 'rgba(218,149,38,0.28)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
+    down:       { label: t('node.status.error'),         sub: t('node.status.sub.retrying'),   glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
+    noWallet:   { label: t('node.status.no_wallet'),     sub: t('node.status.sub.no_wallet'),  glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
   }[phaseKey];
 
   const TABS: { key: ActiveTab; label: string }[] = [
@@ -389,7 +433,7 @@ function Node() {
     );
   }
 
-  const isLoading = restarting || isLocking || isStopping || isUnlocking || syncing || isRestarting;
+  const isLoading = isLocking || isStopping || isUnlocking || syncing || isRestarting;
 
   return (
     <div className={`relative flex flex-col h-screen overflow-hidden select-none ${isLoading ? 'cursor-wait' : ''}`}>
@@ -417,10 +461,10 @@ function Node() {
             <div className={`relative flex items-center justify-center w-[260px] h-[260px] ${isLoading ? 'h-0' : 'mb-[20px]'}`}>
               {!isLoading && (
                 <>
-                  <div className={`absolute w-[250px] h-[250px] rounded-full border border-amber-500 opacity-[0.04]`} />
-                  <div className={`absolute w-[210px] h-[210px] rounded-full border border-amber-500 opacity-[0.08]`} />
-                  <div className={`absolute w-[170px] h-[170px] rounded-full border border-amber-500 opacity-[0.14]`} />
-                  <div className={`absolute w-[130px] h-[130px] rounded-full border border-amber-500 opacity-[0.25]`} />
+                  <div className={`absolute w-[250px] h-[250px] rounded-full border ${phaseConfig.ringColor} opacity-[0.04]`} />
+                  <div className={`absolute w-[210px] h-[210px] rounded-full border ${phaseConfig.ringColor} opacity-[0.08]`} />
+                  <div className={`absolute w-[170px] h-[170px] rounded-full border ${phaseConfig.ringColor} opacity-[0.14]`} />
+                  <div className={`absolute w-[130px] h-[130px] rounded-full border ${phaseConfig.ringColor} opacity-[0.25]`} />
                 </>
               )}
               
@@ -429,20 +473,22 @@ function Node() {
                   if (isLoading) return;
                   if (isLocked) setShowUnlock(true);
                   else if (isDown) handleRestart();
-                  else if (restarting) handleStop();
+                  else if (isNoWallet) handleGoHome();
                 }}
                 disabled={isLoading}
                 className={`relative w-[96px] h-[96px] rounded-full flex items-center justify-center transition-all duration-500 focus:outline-none z-10 ${
-                  isLoading 
-                    ? 'border-none bg-transparent opacity-0' 
-                    : 'border-2 border-white/[0.08] bg-[#1a1a1a] hover:border-[#DA9526]/40 hover:scale-[1.04] active:scale-[0.97]'
+                  isLoading
+                    ? 'border-none bg-transparent opacity-0'
+                    : `border-2 bg-[#1a1a1a] ${phaseConfig.btnColor} hover:scale-[1.04] active:scale-[0.97]`
                 }`}
               >
                 {!isLoading && (
-                  isDown ? (
-                    <RefreshCw size={38} strokeWidth={1.8} className="text-gray-300 group-hover:text-[#DA9526] transition-colors" />
+                  isNoWallet ? (
+                    <Home size={38} strokeWidth={1.8} style={{ color: phaseConfig.iconColor }} />
+                  ) : isDown ? (
+                    <RefreshCw size={38} strokeWidth={1.8} style={{ color: phaseConfig.iconColor }} />
                   ) : (
-                    <Lock size={38} strokeWidth={1.8} className="text-gray-300 group-hover:text-[#DA9526] transition-colors" />
+                    <Lock size={38} strokeWidth={1.8} style={{ color: phaseConfig.iconColor }} />
                   )
                 )}
               </button>
@@ -452,22 +498,22 @@ function Node() {
               <h1 className="text-white text-[24px] font-bold font-headline tracking-tight">
                 {isLocking ? t('node.status.locking_wallet') : phaseConfig.label}
               </h1>
-              <p className="text-gray-400 text-[14px] font-body mt-[4px]">
+              <p className="text-gray-400 text-[14px] font-body mt-[4px] max-w-[220px] mx-auto">
                 {isLocking ? t('node.status.sub.locking') : phaseConfig.sub}
               </p>
             </div>
             
-            {isDown && !restarting && !isLocking && (
+            {isDown && !isLocking && (
               <div className="flex flex-col items-center gap-[4px] mt-[12px]">
                 {info?.portConflict && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.port_conflict')}</p>}
                 {info?.anotherInstance && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.another_instance')}</p>}
                 {info?.error && !info?.portConflict && !info?.anotherInstance && (
-                  <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{info.error}</p>
+                  <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{friendlyDaemonError(info.error, k => t(k as Parameters<typeof t>[0]))}</p>
                 )}
               </div>
             )}
-            {(!isDown || restarting) && syncing && <SyncProgress info={info} />}
-            {(!isDown || restarting) && !syncing && info?.blockHeight ? (
+            {!isDown && syncing && !bootStates.has(state) && <SyncProgress info={info} />}
+            {!isDown && !syncing && info?.blockHeight ? (
               <p className="text-gray-500 text-[11px] font-mono mt-[4px]">{t('overview.block')} {info.blockHeight.toLocaleString()}</p>
             ) : null}
           </motion.div>
@@ -575,6 +621,10 @@ function SyncProgress({ info }: { info: any }) {
   const ts  = info?.bestHeaderTimestamp ?? 0;
   const pct = tip > 0 ? Math.min(100, (cur / tip) * 100) : 0;
 
+  const prevPctRef = useRef(-1);
+  const skipTransition = prevPctRef.current < 0 || pct < prevPctRef.current - 2;
+  useEffect(() => { prevPctRef.current = pct; });
+
   function relativeTime(s: number): string {
     if (!s) return '';
     const d = Math.floor(Date.now() / 1000) - s;
@@ -591,7 +641,7 @@ function SyncProgress({ info }: { info: any }) {
       {tip > 0 && (
         <div className="flex items-center gap-[8px]">
           <div className="w-[140px] h-[3px] bg-gray-800 rounded-full overflow-hidden">
-            <div className="h-full bg-[#DA9526] rounded-full transition-all duration-700" style={{ width: `${pct}%` }} />
+            <div className={`h-full bg-[#DA9526] rounded-full${skipTransition ? '' : ' transition-all duration-700'}`} style={{ width: `${pct}%` }} />
           </div>
           <span className="text-[#DA9526] text-[10px] font-mono">{pct.toFixed(1)}%</span>
         </div>
@@ -625,6 +675,10 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking }: {
   const syncPct  = isSynced ? 100
     : info?.mempoolHeight && info?.blockHeight
     ? Math.min(100, (info.blockHeight / info.mempoolHeight) * 100) : 0;
+
+  const prevSyncPctRef = useRef(-1);
+  const skipSyncTransition = prevSyncPctRef.current < 0 || syncPct < prevSyncPctRef.current - 2;
+  useEffect(() => { prevSyncPctRef.current = syncPct; });
   const networkDisplay = info?.network === 'main' ? 'mainnet' : info?.network;
   const networkColor: Record<string, string> = { main: '#DA9526', mainnet: '#DA9526', testnet: '#60a5fa', regtest: '#a78bfa' };
   const netColor = networkColor[info?.network ?? ''] ?? '#DA9526';
@@ -646,7 +700,7 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking }: {
           {info?.blockHeight
             ? <div className="flex items-center gap-[8px]">
                 <div className="w-[60px] h-[4px] bg-gray-800 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500 bg-[#DA9526]" style={{ width: `${syncPct}%` }} />
+                  <div className={`h-full rounded-full bg-[#DA9526]${skipSyncTransition ? '' : ' transition-all duration-500'}`} style={{ width: `${syncPct}%` }} />
                 </div>
                 <span className="text-white text-[12px] font-mono">{isSynced ? t('overview.synced') : `${syncPct.toFixed(1)}%`}</span>
               </div>

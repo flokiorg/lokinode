@@ -185,7 +185,6 @@ export default function Logs() {
           ref={containerRef}
           onScroll={handleScroll}
           className="h-full overflow-y-auto px-[12px] py-[10px]"
-          style={{ scrollbarWidth: 'thin', scrollbarColor: '#252525 transparent' }}
         >
           {entries.length === 0 ? (
             <p className="text-[10px] font-mono text-gray-400 mt-[2px]">
