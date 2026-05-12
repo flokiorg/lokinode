@@ -2,6 +2,8 @@
 
 Lokinode is a cross-platform desktop app for running and managing a Flokicoin full node (FLND), built with the Wails framework in Go.
 
+📖 https://docs.flokicoin.org/wallets/lokinode/
+
 ## Features
 
 - Initialize, unlock, and manage your Flokicoin wallet
@@ -22,16 +24,12 @@ go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3
 ```bash
 git clone https://github.com/flokiorg/lokinode.git
 cd lokinode
-wails dev
+just dev
 ```
 
 ## Build
 
-```bash
-wails build -tags "autopilotrpc signrpc walletrpc chainrpc invoicesrpc neutrinorpc routerrpc watchtowerrpc monitoring peersrpc kvdb_postrgres kvdb_sqlite kvdb_etcd"
-```
-
-CI builds use Docker-based scripts in `ops/` — see `.github/workflows/`.
+Builds are handled via Docker-based scripts in [`ops/`](ops/) — see [`.github/workflows/`](.github/workflows/).
 
 ## License
 
