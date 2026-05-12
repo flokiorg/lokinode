@@ -1070,7 +1070,7 @@ func (c *Client) ListAddresses() (*walletrpc.ListAddressesResponse, error) {
 	if c.isClosing() {
 		return nil, ErrDaemonNotRunning
 	}
-	ctx, cancel := c.rpcContext(0)
+	ctx, cancel := c.rpcContext(15 * time.Second)
 	defer cancel()
 	return c.walletKit.ListAddresses(ctx, &walletrpc.ListAddressesRequest{})
 }
@@ -1328,7 +1328,7 @@ func (c *Client) NewAddress(addrType lnrpc.AddressType) (string, error) {
 	if c.isClosing() {
 		return "", ErrDaemonNotRunning
 	}
-	ctx, cancel := c.rpcContext(0)
+	ctx, cancel := c.rpcContext(15 * time.Second)
 	defer cancel()
 	resp, err := c.lnClient.NewAddress(ctx, &lnrpc.NewAddressRequest{Type: addrType})
 	if err != nil {
