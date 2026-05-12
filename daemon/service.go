@@ -163,11 +163,34 @@ func (s *Service) runOnce() error {
 
 	d, err := newDaemon(s.ctx, s.cloneConfig(), interceptor)
 	if err != nil {
+		// Interceptor was acquired but daemon was never created. Release it so
+		// the next acquireSignalInterceptor call can succeed.
+		interceptor.RequestShutdown()
+		select {
+		case <-interceptor.ShutdownChannel():
+		case <-time.After(2 * time.Second):
+			log.Warn("signal interceptor did not drain after newDaemon failure")
+		}
 		return s.failStartup("newDaemon", err)
 	}
 
+	log.Info("daemon start: calling d.start()")
 	c, err := d.start()
 	if err != nil {
+		// d.start()'s defer already called d.stop() which triggered RequestShutdown
+		// and drained the interceptor. Wait briefly for the flnd.Main goroutine to
+		// release OS resources (ports, wallet DB) so the next Retry starts clean.
+		// The wait is bounded: if flnd.Main is unresponsive we must still publish
+		// StatusDown so the UI exits the "Starting" screen and shows the error.
+		log.Info("daemon start failed; waiting up to 10s for goroutine cleanup", "err", err)
+		cleanupDone := make(chan struct{})
+		go func() { d.wg.Wait(); close(cleanupDone) }()
+		select {
+		case <-cleanupDone:
+			log.Info("daemon goroutine exited cleanly after start failure")
+		case <-time.After(10 * time.Second):
+			log.Warn("daemon goroutine still running 10s after start failure; proceeding to error state (Retry may see port conflict)")
+		}
 		return s.failStartup("daemon start", err)
 	}
 
@@ -249,16 +272,28 @@ func (s *Service) runHealthRelay(ctx context.Context, d *flndDaemon, c *Client) 
 // retrying past the brief "already started" window that follows the previous
 // daemon's shutdown.
 func (s *Service) acquireSignalInterceptor() (signal.Interceptor, error) {
+	attempts := 0
 	for {
 		interceptor, err := signal.Intercept()
 		if err == nil {
+			if attempts > 0 {
+				log.Info("signal interceptor acquired after retry", "attempts", attempts)
+			}
 			return interceptor, nil
 		}
 		if !strings.Contains(err.Error(), "already started") {
+			log.Error("signal interceptor failed with unexpected error", "err", err)
 			return interceptor, err
+		}
+		attempts++
+		if attempts == 1 {
+			log.Info("signal interceptor busy (previous daemon still cleaning up); retrying", "err", err)
+		} else if attempts%200 == 0 {
+			log.Warn("signal interceptor still busy after retries", "attempts", attempts, "waited_ms", attempts*5)
 		}
 		select {
 		case <-s.ctx.Done():
+			log.Warn("service ctx cancelled while waiting for signal interceptor", "attempts", attempts)
 			return interceptor, s.ctx.Err()
 		case <-time.After(5 * time.Millisecond):
 		}
