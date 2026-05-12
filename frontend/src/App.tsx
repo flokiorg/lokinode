@@ -15,7 +15,8 @@ import './App.css';
 import { TransitionOverlay } from '@/components/TransitionOverlay/TransitionOverlay';
 
 import { useNodeConfigStore } from '@/store/nodeConfig';
-import useSWR from 'swr';
+import { useInfo } from '@/hooks/useInfo';
+import { EventStreamProvider } from '@/providers/EventStreamProvider';
 
 import { useTranslation } from '@/i18n/context';
 
@@ -30,10 +31,11 @@ function Layout() {
     pubKey,    setPubKey,
     aliasName, setAliasName,
   } = useNodeConfigStore();
-  const { data: info } = useSWR<any>('/api/info', fetcher, { refreshInterval: 5000 });
+  const { data: info } = useInfo();
 
   // ── Global pubKey sync ──────────────────────────────────────────────────────
   // When the daemon comes up, persist the discovered pubkey and sync alias.
+  // useInfo() is revalidated by EventStreamProvider when state reaches 'ready'.
   useEffect(() => {
     if (!info?.nodeRunning || !info.nodePubkey) return;
 
@@ -57,22 +59,24 @@ function Layout() {
   const glowPosition = isMain ? '50% 25%' : isNode ? '50% 30%' : '50% 10%';
 
   return (
-    <div className="h-screen bg-[#121212] overflow-hidden relative">
-      <TransitionOverlay />
-      {/* Centralized Ambient Glow */}
-      <div
-        className="absolute inset-0 pointer-events-none transition-all duration-1000"
-        style={{
-          background: `radial-gradient(ellipse 70% 60% at ${glowPosition}, rgba(218,149,38,${glowOpacity}) 0%, transparent 70%)`,
-        }}
-      />
+    <EventStreamProvider>
+      <div className="h-screen bg-[#121212] overflow-hidden relative">
+        <TransitionOverlay />
+        {/* Centralized Ambient Glow */}
+        <div
+          className="absolute inset-0 pointer-events-none transition-all duration-1000"
+          style={{
+            background: `radial-gradient(ellipse 70% 60% at ${glowPosition}, rgba(218,149,38,${glowOpacity}) 0%, transparent 70%)`,
+          }}
+        />
 
-      <Header />
-      <main className="absolute inset-0 z-10 overflow-hidden">
-        <Outlet />
-      </main>
-      <UpdateAlert />
-    </div>
+        <Header />
+        <main className="absolute inset-0 z-10 overflow-hidden">
+          <Outlet />
+        </main>
+        <UpdateAlert />
+      </div>
+    </EventStreamProvider>
   );
 }
 

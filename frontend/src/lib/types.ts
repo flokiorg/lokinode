@@ -96,3 +96,15 @@ export interface CredentialsResponse {
   tlsCertPath: string;
   grpcEndpoint: string;
 }
+
+export interface StateEvent {
+  state: string;
+  nodeRunning: boolean;
+  error?: string;
+  portConflict?: boolean;
+  anotherInstance?: boolean;
+  blockHeight?: number;
+  blockHash?: string;
+  syncedHeight?: number;
+  transaction?: TransactionItem;
+}

@@ -4,8 +4,8 @@ import { useToast } from '@/hooks/useToast';
 import { useTranslation } from '@/i18n/context';
 
 /** Watches transactions and toasts when a new incoming payment is detected. */
-export function useNotifyIncoming(active = false) {
-  const { data } = useTransactions(10, 0, active);
+export function useNotifyIncoming() {
+  const { data } = useTransactions(10, 0);
   const { toast } = useToast();
   const { t } = useTranslation();
   const prevHashRef = useRef<string | null>(null);
