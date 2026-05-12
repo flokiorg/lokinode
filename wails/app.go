@@ -12,11 +12,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/flokiorg/flnd"
+	lokitray "github.com/flokiorg/lokinode/tray"
 	"github.com/flokiorg/lokinode/daemon"
 	"github.com/flokiorg/lokinode/db"
 	"github.com/tidwall/gjson"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
 
@@ -82,6 +85,20 @@ func (a *App) Startup(ctx context.Context) {
 	ln, err := net.Listen("tcp4", "127.0.0.1:"+instanceLockPort)
 	if err == nil {
 		a.singletonLn = ln
+		// Accept connections as a fallback show-signal: when a second instance
+		// connects to the port (via TrySignalRunningInstance) and Wails' own IPC
+		// fails, this goroutine brings the window to the front.
+		go func() {
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					return // listener closed on Shutdown
+				}
+				conn.Close()
+				lokitray.ShowInDock()
+				runtime.WindowShow(ctx)
+			}
+		}()
 	}
 
 	// Initialize database
@@ -110,6 +127,18 @@ func (a *App) Shutdown(_ context.Context) {
 // IsAnotherInstanceRunning reports whether a second Lokinode window is open.
 func (a *App) IsAnotherInstanceRunning() bool {
 	return a.singletonLn == nil
+}
+
+// TrySignalRunningInstance connects to the singleton port. If another instance
+// is listening it will receive the connection and show its window. Returns true
+// when another instance was found, so the caller can exit immediately.
+func TrySignalRunningInstance() bool {
+	conn, err := net.DialTimeout("tcp4", "127.0.0.1:"+instanceLockPort, 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // GetVersion returns the current app version from wails.json.

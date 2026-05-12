@@ -44,6 +44,12 @@ func resolveTrayIcon() []byte {
 }
 
 func main() {
+	// Fast-path: if the singleton port is already held, signal the running
+	// instance to show its window and exit without starting Wails at all.
+	if lokiapp.TrySignalRunningInstance() {
+		return
+	}
+
 	lokilog.Init()
 	app := lokiapp.New(wailsJSON)
 	// bindings is the narrow Wails JS bridge — only OS-level dialog operations.
@@ -69,6 +75,7 @@ func main() {
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId: "lokinode-singleton-lock",
 			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				lokitray.ShowInDock()
 				runtime.WindowShow(app.Context())
 			},
 		},
