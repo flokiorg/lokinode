@@ -16,7 +16,7 @@ type SettingsTab = 'network' | 'security' | 'logs' | 'about';
 export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: info } = useInfo(true);
+  const { data: info } = useInfo();
   const { t } = useTranslation();
   const [tab, setTab] = useState<SettingsTab>(
     (location.state as { tab?: SettingsTab } | null)?.tab ?? 'network'

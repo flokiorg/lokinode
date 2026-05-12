@@ -47,7 +47,7 @@ export default function Transactions() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [limit, setLimit] = useState(50);
-  const { data, isLoading } = useTransactions(limit, 0, true);
+  const { data, isLoading } = useTransactions(limit, 0);
 
   if (isLoading) {
     return (

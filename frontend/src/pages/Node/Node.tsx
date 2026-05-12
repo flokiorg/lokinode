@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/useToast';
 import { useInfo } from '@/hooks/useInfo';
 import { useBalance } from '@/hooks/useBalance';
 import { useNotifyIncoming } from '@/hooks/useNotifyIncoming';
+import { useEventStream } from '@/hooks/useEventStream';
 import { post, ApiError } from '@/lib/fetcher';
 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -56,10 +57,10 @@ function Node() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useTranslation();
-  const { data: info, mutate: mutateInfo } = useInfo(true);
-  const nodeActive = info?.state === STATUS_READY || info?.state === STATUS_BLOCK || info?.state === STATUS_TX;
-  const { data: balance } = useBalance(nodeActive);
-  useNotifyIncoming(nodeActive);
+  const { event } = useEventStream();
+  const { data: info, mutate: mutateInfo } = useInfo();
+  const { data: balance } = useBalance();
+  useNotifyIncoming();
   const {
     walletUnlocked,
     setWalletUnlocked,
@@ -79,17 +80,23 @@ function Node() {
   const [pwdError, setPwdError] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [startTime] = useState(() => Math.floor(Date.now() / 1000));
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigatingAwayRef = useRef(false);
-  // Tracks that the restart cycle visibly started (node went down or hit a
-  // transient boot state). Prevents clearing isRestarting from stale SWR
-  // cache when the pre-restart state already happens to be "locked".
+  // Tracks that the restart cycle has visibly started (SSE delivers 'starting'
+  // before any settled state, so this is set promptly — no timer fallback needed).
   const seenRestartProgressRef = useRef(false);
   // Guards against rapid double-clicks on the Retry button. The state-based
   // guard in handleRestart() relies on React having re-rendered the optimistic
   // 'starting' value between clicks, which isn't guaranteed under load.
   const restartInFlightRef = useRef(false);
+  // Prevents the stale 'down' SSE event (stored in the singleton
+  // EventStreamProvider) from showing "Node Error" immediately when the
+  // component mounts after a deliberate power-off. Only show the error screen
+  // once we've actually observed the node running in this mount session.
+  const hasSeenNonDownRef = useRef(false);
 
   // drag-to-dismiss for unlock sheet
   const [sheetDrag, setSheetDrag] = useState(0);
@@ -97,14 +104,16 @@ function Node() {
   const isDraggingSheet = useRef(false);
 
 
-  const state      = info?.state ?? '';
+  // SSE is the authoritative live source; fall back to REST cache before first event.
+  const state       = event?.state ?? info?.state ?? '';
+  const nodeRunning = event?.nodeRunning ?? info?.nodeRunning ?? false;
   // Suppress the "active" branch while a settings restart is in flight so we
   // never flash the overview mid-restart and then jump straight to the unlock
   // sheet with no loading indicator.
   const isActive   = !isRestarting && (state === STATUS_READY || state === STATUS_BLOCK || state === STATUS_TX);
   const isLocked   = state === STATUS_LOCKED;
   const isNoWallet = state === STATUS_NO_WALLET;
-  const isDown     = state === STATUS_DOWN;
+  const isDown     = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying;
 
   // ── Unlock ────────────────────────────────────────────────────────────────────
   async function handleUnlock() {
@@ -145,8 +154,11 @@ function Node() {
     clearSession();
     try {
       await post('/api/node/stop', {});
-      mutateInfo(cur => cur ? { ...cur, nodeRunning: false, state: STATUS_DOWN } : cur, false);
+      // Navigate directly: the SSE stream always reports nodeRunning=true (service
+      // is alive), so the old effect-based navigate-away via mutateInfo(nodeRunning:false)
+      // no longer fires. Direct navigation is cleaner and avoids the race.
       setIsStopping(false);
+      navigate('/', { replace: true });
     } catch (err) {
       setIsStopping(false);
       setUserStopped(false);
@@ -168,6 +180,9 @@ function Node() {
     setPwdError(false);
     try {
       await post('/api/wallet/lock', {});
+      // Clear optimistically; the effect at [isLocking, isLocked, nodeRunning]
+      // remains as a backstop if SSE delivers 'locked' before this line runs.
+      setIsLocking(false);
       mutateInfo();
     } catch (err) {
       setIsLocking(false);
@@ -192,24 +207,16 @@ function Node() {
 
   // ── Restart (from down)
   async function handleRestart() {
-    // Two-layer guard against double-invocation:
-    //   1. state-based — prevents calling Retry from any non-down screen.
-    //   2. ref-based   — prevents two synchronous clicks racing through the
-    //      gap between mutateInfo() and the next React render.
     if (state !== STATUS_DOWN || restartInFlightRef.current) return;
     restartInFlightRef.current = true;
-    // Optimistic update to 'starting' — drives phaseKey to 'syncing' immediately
-    // so the user sees the "Starting" screen without waiting for the SWR poll.
-    // The 2s poll naturally drives the rest of the lifecycle; we deliberately
-    // do NOT revalidate after the POST succeeds because the server's state at
-    // that instant is still 'down' (or just-transitioned 'starting') and would
-    // overwrite our optimistic value, flickering the error screen.
-    mutateInfo(cur => cur ? { ...cur, state: 'starting' } : cur, false);
+    // Immediately hide the error screen and show the spinner — don't wait for
+    // the first SSE event. isRetrying is cleared by the event effect as soon
+    // as the backend sends any update (including a new 'down' on repeat failure).
+    setIsRetrying(true);
     try {
       await post('/api/node/restart', {});
     } catch (err) {
-      // Revert: revalidate so the cache reflects whatever the server actually
-      // has (most likely still 'down').
+      setIsRetrying(false);
       mutateInfo();
       if (err instanceof ApiError && err.status === 429) {
         toast({ variant: 'destructive', title: t('node.errors.rate_limited') });
@@ -222,10 +229,18 @@ function Node() {
   }
 
   useEffect(() => {
-    if (isLocking && isLocked && info?.nodeRunning) {
+    if (event === null) return;
+    if (event.state !== STATUS_DOWN) hasSeenNonDownRef.current = true;
+    // Any event from the backend means the daemon responded — clear the
+    // retrying spinner regardless of whether it succeeded or failed again.
+    if (isRetrying) setIsRetrying(false);
+  }, [event]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (isLocking && isLocked && nodeRunning) {
       setIsLocking(false);
     }
-  }, [isLocking, isLocked, info?.nodeRunning]);
+  }, [isLocking, isLocked, nodeRunning]);
 
   useEffect(() => {
     if (!isLocking) {
@@ -242,14 +257,17 @@ function Node() {
   useEffect(() => {
     if (!autoUnlockPending) return;
     if (isRestarting) return;
-    if (!isLocked || !info?.nodeRunning) return;
+    if (!isLocked || !nodeRunning) return;
     if (walletUnlocked) return;
     setAutoUnlockPending(false);
     setShowUnlock(true);
-  }, [autoUnlockPending, isRestarting, isLocked, info?.nodeRunning, walletUnlocked]);
+  }, [autoUnlockPending, isRestarting, isLocked, nodeRunning, walletUnlocked]);
 
   useEffect(() => {
-    if (info === undefined || info.nodeRunning) return;
+    // SSE delivers nodeRunning=true always (service is alive); the only false
+    // case is before the first event arrives, covered by the info fallback.
+    if (event === null && info === undefined) return;
+    if (nodeRunning) return;
     if (isLocking) return;
     // Don't navigate away while a settings-triggered restart is in flight —
     // the daemon is intentionally down and will come back shortly.
@@ -261,40 +279,44 @@ function Node() {
       navigatingAwayRef.current = true;
       navigate('/', { replace: true });
     }
-  }, [info?.nodeRunning, isLocking, isRestarting, isStopping]);
-
-  // Mark that the restart cycle has visibly started (node down or boot state).
-  useEffect(() => {
-    if (!isRestarting) {
-      seenRestartProgressRef.current = false;
-      return;
-    }
-    if (!info?.nodeRunning || state === 'starting' || state === 'init' || state === 'none') {
-      seenRestartProgressRef.current = true;
-    }
-  }, [isRestarting, info?.nodeRunning, state]);
+  }, [nodeRunning, event, info, isLocking, isRestarting, isStopping]);
 
   useEffect(() => {
-    if (!info?.nodeRunning && info !== undefined && !isLocking) {
+    if (!nodeRunning && event !== null && !isLocking) {
       clearSession();
     }
-    // Clear isRestarting only after we've witnessed the restart actually
-    // begin (node went down or entered a transient boot state). This prevents
-    // stale SWR cache from triggering the clear the moment we arrive at /node
-    // when the pre-restart state happened to already be "locked".
-    // Check `state` directly rather than `isActive` — isActive is always false
-    // while isRestarting is true, so a node that restarts directly to "ready"
-    // (no wallet password) would never clear the restarting flag otherwise.
-    const nodeSettled = info?.nodeRunning && (
+    // SSE delivers 'starting' before any settled state, so seenRestartProgressRef
+    // is set promptly — no timer fallback needed (unlike the old polling approach).
+    if (!isRestarting) {
+      seenRestartProgressRef.current = false;
+      if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
+      return;
+    }
+    if (!nodeRunning || state === 'starting' || state === 'init' || state === 'none') {
+      seenRestartProgressRef.current = true;
+    }
+    const nodeSettled = nodeRunning && (
       state === STATUS_LOCKED ||
       state === STATUS_READY  ||
       state === STATUS_BLOCK  ||
       state === STATUS_TX
     );
-    if (isRestarting && seenRestartProgressRef.current && nodeSettled) {
+    if (seenRestartProgressRef.current && nodeSettled) {
+      if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; }
       setIsRestarting(false);
     }
-  }, [info?.nodeRunning, isRestarting, isLocked, isActive, state]);
+  }, [nodeRunning, event, isRestarting, isLocked, isActive, state]);
+
+  // Safety net: if the daemon crashes mid-restart (e.g. flnd.Main hangs) and
+  // nodeSettled never becomes true, clear isRestarting after 60s so the user
+  // isn't permanently stuck on the Restarting screen.
+  useEffect(() => {
+    if (!isRestarting) return;
+    restartTimerRef.current = setTimeout(() => {
+      setIsRestarting(false);
+    }, 60_000);
+    return () => { if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; } };
+  }, [isRestarting]);
 
   useEffect(() => {
     if (!isLocked && !isLocking && showUnlock) {
@@ -328,7 +350,7 @@ function Node() {
   // in lock-step (one source of truth).
   const syncing    = phaseKey === 'syncing';
   const bootStates = new Set(['init', 'starting', 'none', '']);
-  const syncingLabel = bootStates.has(state) ? t('node.status.starting') : t('node.status.syncing');
+  const syncingLabel = (bootStates.has(state) || isRetrying) ? t('node.status.starting') : t('node.status.syncing');
   const syncingSub: Record<string, string> = {
     init: t('node.sync.init'), none: t('node.sync.none'), unlocked: t('node.sync.unlocked'),
     syncing: t('node.sync.syncing'), scanning: t('node.sync.scanning'), tx: t('node.sync.tx'),
@@ -505,10 +527,10 @@ function Node() {
             
             {isDown && !isLocking && (
               <div className="flex flex-col items-center gap-[4px] mt-[12px]">
-                {info?.portConflict && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.port_conflict')}</p>}
-                {info?.anotherInstance && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.another_instance')}</p>}
-                {info?.error && !info?.portConflict && !info?.anotherInstance && (
-                  <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{friendlyDaemonError(info.error, k => t(k as Parameters<typeof t>[0]))}</p>
+                {(event?.portConflict ?? info?.portConflict) && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.port_conflict')}</p>}
+                {(event?.anotherInstance ?? info?.anotherInstance) && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.another_instance')}</p>}
+                {(event?.error ?? info?.error) && !(event?.portConflict ?? info?.portConflict) && !(event?.anotherInstance ?? info?.anotherInstance) && (
+                  <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{friendlyDaemonError((event?.error ?? info?.error)!, k => t(k as Parameters<typeof t>[0]))}</p>
                 )}
               </div>
             )}
