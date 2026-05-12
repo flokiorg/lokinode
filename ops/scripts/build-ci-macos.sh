@@ -41,8 +41,8 @@ cd ..
 # 3. Build Desktop (Universal)
 # -----------------------------------------------------------------------------
 build_macos_desktop() {
-    local BASENAME="lokinode-desktop-macos"
-    local ARCHIVE_NAME="lokinode-desktop-macos-${TAG}"
+    local BASENAME="lokinode-macos"
+    local ARCHIVE_NAME="lokinode-macos-${TAG}"
 
     echo "Building macOS Desktop (Universal)..."
 

@@ -51,8 +51,8 @@ echo "--- Building Desktop App ---"
 rm -rf build/bin
 mkdir -p build/bin
 
-BASENAME="lokinode-desktop-${GOOS}-${GOARCH}"
-ARCHIVE_NAME="lokinode-desktop-${GOOS}-${GOARCH}-${TAG}"
+BASENAME="lokinode-${GOOS}-${GOARCH}"
+ARCHIVE_NAME="lokinode-${GOOS}-${GOARCH}-${TAG}"
 echo "ARCHIVE_NAME=${ARCHIVE_NAME}"
 
 # Cleanup previous AppImages
@@ -168,7 +168,7 @@ if command -v nfpm >/dev/null 2>&1; then
         LIBWEBKIT_RPM="webkit2gtk4.1"
     fi
 
-    TARGET_BINARY="lokinode-desktop-linux-${GOARCH}${DEB_SUFFIX}"
+    TARGET_BINARY="lokinode-linux-${GOARCH}${DEB_SUFFIX}"
     cp "build/bin/${BASENAME}" "ops/bin/${TARGET_BINARY}"
 
     sed -e "s|\${GOARCH}|$GOARCH|g" \
@@ -178,19 +178,19 @@ if command -v nfpm >/dev/null 2>&1; then
         -e "s|\${LIBWEBKIT_RPM}|$LIBWEBKIT_RPM|g" \
         ops/packaging/nfpm.yaml > ops/packaging/nfpm_eff.yaml
 
-    DEB_NAME="lokinode-desktop-linux${DEB_SUFFIX}-${GOARCH}-${TAG}.deb"
+    DEB_NAME="lokinode-linux${DEB_SUFFIX}-${GOARCH}-${TAG}.deb"
     nfpm package --config ops/packaging/nfpm_eff.yaml --packager deb --target "ops/bin/${DEB_NAME}"
 
     RPM_ARCH="x86_64"
     if [ "$GOARCH" == "arm64" ]; then
         RPM_ARCH="aarch64"
     fi
-    RPM_NAME="lokinode-desktop-linux${DEB_SUFFIX}-${RPM_ARCH}-${TAG}.rpm"
+    RPM_NAME="lokinode-linux${DEB_SUFFIX}-${RPM_ARCH}-${TAG}.rpm"
     nfpm package --config ops/packaging/nfpm_eff.yaml --packager rpm --target "ops/bin/${RPM_NAME}"
 
     APPIMAGE_ORIG="ops/bin/${ARCHIVE_NAME}.AppImage"
     if [ -n "$DEB_SUFFIX" ]; then
-        NEW_APPIMAGE_NAME="lokinode-desktop-linux${DEB_SUFFIX}-${GOARCH}-${TAG}.AppImage"
+        NEW_APPIMAGE_NAME="lokinode-linux${DEB_SUFFIX}-${GOARCH}-${TAG}.AppImage"
         mv "${APPIMAGE_ORIG}" "ops/bin/${NEW_APPIMAGE_NAME}"
     fi
 

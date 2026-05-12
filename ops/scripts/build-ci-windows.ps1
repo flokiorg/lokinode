@@ -40,8 +40,8 @@ function Build-Desktop {
         [string]$Arch
     )
     $WailsPlatform = "windows/$Arch"
-    $Basename = 'lokinode-desktop-windows'
-    $ArchiveName = "lokinode-desktop-windows-$($env:TAG).zip"
+    $Basename = 'lokinode-windows'
+    $ArchiveName = "lokinode-windows-$($env:TAG).zip"
 
     Write-Host "Building Desktop for $Arch..."
 
@@ -66,7 +66,7 @@ function Build-Desktop {
 
         $InstallerSrc = '../../build/bin/lokinode-amd64-installer.exe'
         if (Test-Path $InstallerSrc) {
-            $InstallerDst = "lokinode-desktop-windows-$($env:TAG)-installer.exe"
+            $InstallerDst = "lokinode-windows-$($env:TAG)-installer.exe"
             Move-Item -Force $InstallerSrc $InstallerDst
             Write-Host "Installer: $InstallerDst"
         }
