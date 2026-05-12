@@ -5,8 +5,24 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/flokiorg/flnd/lnrpc"
 	"github.com/labstack/echo/v4"
 )
+
+func txToItem(tx *lnrpc.Transaction) TransactionItem {
+	addrs := make([]string, 0, len(tx.DestAddresses))
+	addrs = append(addrs, tx.DestAddresses...)
+	return TransactionItem{
+		TxHash:        tx.TxHash,
+		Amount:        tx.Amount,
+		Confirmations: tx.NumConfirmations,
+		BlockHeight:   tx.BlockHeight,
+		Timestamp:     tx.TimeStamp,
+		Addresses:     addrs,
+		Label:         tx.Label,
+		Fee:           tx.TotalFees,
+	}
+}
 
 func handleTransactions(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -68,18 +84,7 @@ func handleTransactions(app App) echo.HandlerFunc {
 
 		items := make([]TransactionItem, 0, len(page))
 		for _, tx := range page {
-			addrs := make([]string, 0, len(tx.DestAddresses))
-			addrs = append(addrs, tx.DestAddresses...)
-			items = append(items, TransactionItem{
-				TxHash:        tx.TxHash,
-				Amount:        tx.Amount,
-				Confirmations: tx.NumConfirmations,
-				BlockHeight:   tx.BlockHeight,
-				Timestamp:     tx.TimeStamp,
-				Addresses:     addrs,
-				Label:         tx.Label,
-				Fee:           tx.TotalFees,
-			})
+			items = append(items, txToItem(tx))
 		}
 
 		return c.JSON(http.StatusOK, TransactionsResponse{

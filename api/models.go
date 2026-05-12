@@ -223,6 +223,19 @@ type DirEmptyResponse struct {
 	Empty bool `json:"empty"`
 }
 
+// StateEvent is pushed on GET /api/events for every daemon state change.
+type StateEvent struct {
+	State           string           `json:"state"`
+	NodeRunning     bool             `json:"nodeRunning"`
+	Error           string           `json:"error,omitempty"`
+	PortConflict    bool             `json:"portConflict,omitempty"`
+	AnotherInstance bool             `json:"anotherInstance,omitempty"`
+	BlockHeight     uint32           `json:"blockHeight,omitempty"`
+	BlockHash       string           `json:"blockHash,omitempty"`
+	SyncedHeight    uint32           `json:"syncedHeight,omitempty"`
+	Transaction     *TransactionItem `json:"transaction,omitempty"`
+}
+
 // ErrorResponse wraps API errors.
 type ErrorResponse struct {
 	Message string `json:"message"`

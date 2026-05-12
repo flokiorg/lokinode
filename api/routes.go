@@ -51,4 +51,7 @@ func registerRoutes(g *echo.Group, app App) {
 	// Logs
 	g.GET("/logs", handleLogs(app))
 	g.GET("/logs/stream", handleLogsStream(app))
+
+	// Daemon event stream (SSE)
+	g.GET("/events", handleEvents(app))
 }
