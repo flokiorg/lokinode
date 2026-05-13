@@ -39,22 +39,24 @@ function Main() {
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { connected } = useEventStream();
+  const { event: sseEvent } = useEventStream();
   const transitionActive = useTransitionStore(s => s.isActive);
   const endTransition   = useTransitionStore(s => s.endTransition);
 
-  // Dismiss the stopping overlay once the SSE disconnects (daemon down).
+  // Dismiss the stopping overlay once the daemon reports it is down via SSE.
+  // The backend keeps the SSE connection open while waiting for the next service,
+  // so we watch the event state rather than the connection status.
   useEffect(() => {
     if (!transitionActive || !userStopped) return;
-    if (connected) return;
+    if (sseEvent?.state !== 'down') return;
     if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
     endTransition();
-  }, [transitionActive, userStopped, connected]);
+  }, [transitionActive, userStopped, sseEvent?.state]);
 
-  // Safety net: clear overlay after 30 s in case SSE never disconnects.
+  // Safety net: clear overlay after 10 s in case the 'down' event never arrives.
   useEffect(() => {
     if (!transitionActive || !userStopped) return;
-    safetyTimerRef.current = setTimeout(() => endTransition(), 30_000);
+    safetyTimerRef.current = setTimeout(() => endTransition(), 10_000);
     return () => { if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current); };
   }, [transitionActive, userStopped]);
 
