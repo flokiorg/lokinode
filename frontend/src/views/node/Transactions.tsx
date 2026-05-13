@@ -27,7 +27,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="opacity-50 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-400 hover:text-[#DA9526] relative"
+      className="opacity-0 group-hover:opacity-100 p-[4px] hover:bg-white/5 rounded transition-all text-gray-400 hover:text-[#DA9526] relative"
     >
       <div className="w-[12px] h-[12px] relative">
         <Copy 
@@ -90,36 +90,36 @@ export default function Transactions() {
         const amountStr = formatFLC(Math.abs(tx.amount)).split(' ')[0];
 
         return (
-          <div key={tx.txHash} className="bg-[#1c1c1e]/50 border border-white/[0.04] hover:border-[#DA9526]/20 rounded-2xl px-[16px] py-[14px] flex items-center justify-between transition-all group">
-            <div className="flex items-center gap-[14px]">
-              <div className={`w-[36px] h-[36px] rounded-full flex items-center justify-center transition-colors ${
-                incoming 
-                  ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20' 
+          <div key={tx.txHash} className="bg-[#1c1c1e]/50 border border-white/[0.04] hover:border-[#DA9526]/20 rounded-2xl px-[16px] py-[14px] flex items-center justify-between gap-[12px] transition-all group">
+            <div className="flex items-center gap-[14px] min-w-0">
+              <div className={`w-[36px] h-[36px] rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                incoming
+                  ? 'bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20'
                   : 'bg-red-500/10 text-red-400 group-hover:bg-red-500/20'
               }`}>
-                {incoming 
-                  ? <ArrowDownLeft size={18} strokeWidth={2} /> 
+                {incoming
+                  ? <ArrowDownLeft size={18} strokeWidth={2} />
                   : <ArrowUpRight size={18} strokeWidth={2} />
                 }
               </div>
-              <div className="flex flex-col gap-[2px]">
+              <div className="flex flex-col gap-[2px] min-w-0">
                 <div className="flex items-center gap-[6px]">
-                    <p 
+                  <p
                     onClick={() => BrowserOpenURL(`https://lokichain.info/tx/${tx.txHash}`)}
-                    className="text-gray-300 text-[11px] font-mono tracking-tight cursor-pointer hover:text-[#DA9526] transition-colors flex items-center gap-[4px]"
+                    className="text-gray-300 text-[11px] font-mono tracking-tight cursor-pointer hover:text-[#DA9526] transition-colors flex items-center gap-[4px] whitespace-nowrap"
                   >
                     {shortHash(tx.txHash)}
                     <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
                   </p>
                   <CopyButton text={tx.txHash} />
                 </div>
-                <p className="text-gray-400 text-[10px] font-label uppercase tracking-wide">
+                <p className="text-gray-400 text-[10px] font-label uppercase tracking-wide whitespace-nowrap">
                   {tx.timestamp ? formatDate(tx.timestamp) : '—'}
                 </p>
               </div>
             </div>
-            <div className="text-right flex flex-col gap-[2px]">
-              <p className={`text-[15px] font-mono font-bold tracking-tight ${incoming ? 'text-emerald-400' : 'text-red-400'}`}>
+            <div className="text-right flex flex-col gap-[2px] shrink-0">
+              <p className={`text-[15px] font-mono font-bold tracking-tight whitespace-nowrap ${incoming ? 'text-emerald-400' : 'text-red-400'}`}>
                 {incoming ? '+' : '−'}{amountStr}
               </p>
               {unconfirmed ? (
