@@ -21,6 +21,7 @@ import { useNodeSessionStore } from '@/store/nodeSession';
 import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { KineticSpinner } from '@/components/ui/KineticSpinner';
 import { formatFLC } from '@/lib/utils';
+import { useTransitionStore } from '@/components/TransitionOverlay/TransitionOverlay';
 
 const STATUS_READY     = 'ready';
 const STATUS_BLOCK     = 'block';
@@ -71,6 +72,8 @@ function Node() {
     setIsRestarting,
     clearSession,
   } = useNodeSessionStore();
+
+  const { startTransition } = useTransitionStore();
 
   const [tab, setTab] = useState<ActiveTab>('overview');
   const [password, setPassword] = useState('');
@@ -152,16 +155,14 @@ function Node() {
     setIsStopping(true);
     setUserStopped(true);
     clearSession();
+    startTransition(t('node.stopping'), t('node.status.sub.stopping'));
     try {
       await post('/api/node/stop', {});
-      // Navigate directly: the SSE stream always reports nodeRunning=true (service
-      // is alive), so the old effect-based navigate-away via mutateInfo(nodeRunning:false)
-      // no longer fires. Direct navigation is cleaner and avoids the race.
-      setIsStopping(false);
       navigate('/', { replace: true });
     } catch (err) {
       setIsStopping(false);
       setUserStopped(false);
+      useTransitionStore.getState().endTransition();
       if (err instanceof ApiError && err.status === 429) {
         toast({ variant: 'destructive', title: t('node.errors.rate_limited') });
       } else {
@@ -534,7 +535,7 @@ function Node() {
                 )}
               </div>
             )}
-            {!isDown && syncing && !bootStates.has(state) && <SyncProgress info={info} />}
+            {!isDown && syncing && !bootStates.has(state) && <SyncProgress info={info} event={event} />}
             {!isDown && !syncing && info?.blockHeight ? (
               <p className="text-gray-500 text-[11px] font-mono mt-[4px]">{t('overview.block')} {info.blockHeight.toLocaleString()}</p>
             ) : null}
@@ -636,11 +637,20 @@ function Node() {
 }
 
 // ── Sync progress ──────────────────────────────────────────────────────────────
-function SyncProgress({ info }: { info: any }) {
+function SyncProgress({ info, event }: { info: any; event: import('@/lib/types').StateEvent | null }) {
   const { t } = useTranslation();
-  const tip = info?.mempoolHeight ?? 0;
-  const cur = info?.blockHeight ?? 0;
-  const ts  = info?.bestHeaderTimestamp ?? 0;
+
+  // mempoolHeight and blockHeight arrive on every SSE event
+  const tip = event?.mempoolHeight ?? info?.mempoolHeight ?? 0;
+  const cur = event?.blockHeight   ?? info?.blockHeight   ?? 0;
+
+  // bestHeaderTimestamp only arrives every 5 s (pollSyncStatus tick).
+  // Sticky ref retains the last known value across per-block events that omit it.
+  const tsRaw = event?.bestHeaderTimestamp ?? info?.bestHeaderTimestamp ?? 0;
+  const tsRef = useRef(0);
+  if (tsRaw > 0) tsRef.current = tsRaw;
+  const ts = tsRef.current;
+
   const pct = tip > 0 ? Math.min(100, (cur / tip) * 100) : 0;
 
   const prevPctRef = useRef(-1);

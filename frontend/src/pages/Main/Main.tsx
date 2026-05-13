@@ -16,6 +16,8 @@ type NodeConfigDTO = {
   restCors: string; rpcListen: string; restListen: string;
 };
 import { useNodeSessionStore } from '@/store/nodeSession';
+import { useEventStream } from '@/hooks/useEventStream';
+import { useTransitionStore } from '@/components/TransitionOverlay/TransitionOverlay';
 import { useToast } from '@/hooks/useToast';
 import { fetcher, post, patch } from '@/lib/fetcher';
 import { Toaster } from '@/components/ui/toaster';
@@ -30,11 +32,31 @@ function Main() {
     setPubKey,
     fetchLastNode,
   } = useNodeConfigStore();
-  const { setUserStopped, setAutoUnlockPending } = useNodeSessionStore();
+  const { userStopped, setUserStopped, setAutoUnlockPending } = useNodeSessionStore();
   const navigate = useNavigate();
   const { data: info } = useInfo();
   const { toast } = useToast();
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { connected } = useEventStream();
+  const transitionActive = useTransitionStore(s => s.isActive);
+  const endTransition   = useTransitionStore(s => s.endTransition);
+
+  // Dismiss the stopping overlay once the SSE disconnects (daemon down).
+  useEffect(() => {
+    if (!transitionActive || !userStopped) return;
+    if (connected) return;
+    if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
+    endTransition();
+  }, [transitionActive, userStopped, connected]);
+
+  // Safety net: clear overlay after 30 s in case SSE never disconnects.
+  useEffect(() => {
+    if (!transitionActive || !userStopped) return;
+    safetyTimerRef.current = setTimeout(() => endTransition(), 30_000);
+    return () => { if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current); };
+  }, [transitionActive, userStopped]);
 
   // existingDir: true once we confirm the current nodeDir contains flnd data
   const [existingDir, setExistingDir] = useState(false);

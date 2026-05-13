@@ -107,4 +107,6 @@ export interface StateEvent {
   blockHash?: string;
   syncedHeight?: number;
   transaction?: TransactionItem;
+  mempoolHeight?: number;
+  bestHeaderTimestamp?: number;
 }
