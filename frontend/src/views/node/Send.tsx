@@ -350,7 +350,7 @@ export default function Send() {
                   {isCalculatingMax ? (
                     <>
                       <Loader2 size={10} className="animate-spin" />
-                      <span>Calculating…</span>
+                      <span>{t('send.calculating')}</span>
                     </>
                   ) : (
                     <span>{t('send.available', { amount: formatFLC(balance.confirmed) })}</span>
@@ -418,8 +418,8 @@ export default function Send() {
               <AlertCircle size={16} className="text-red-400 shrink-0" />
               <p className="text-red-400/90 text-[12px] font-body">
                 {amountLoki > balanceLoki
-                  ? 'Amount exceeds your balance'
-                  : `Amount too high — leave room for the network fee (~${roughFee.toFixed(8)} FLC)`
+                  ? t('send.errors.exceeds_balance')
+                  : t('send.errors.leave_fee_room', { fee: roughFee.toFixed(8) })
                 }
               </p>
             </div>
@@ -449,7 +449,7 @@ export default function Send() {
             <Loader2 size={18} className="animate-spin" />
           ) : (
             <>
-              <span>Review Transaction</span>
+              <span>{t('send.review_title')}</span>
               <ArrowRight size={18} />
             </>
           )}
