@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/flokiorg/flnd"
-	lokitray "github.com/flokiorg/lokinode/tray"
 	"github.com/flokiorg/lokinode/daemon"
 	"github.com/flokiorg/lokinode/db"
+	lokitray "github.com/flokiorg/lokinode/tray"
 	"github.com/tidwall/gjson"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
@@ -25,7 +25,7 @@ import (
 
 // instanceLockPort is a loopback TCP port held exclusively by the running
 // Lokinode instance. If binding fails another instance is already running.
-const instanceLockPort = "59489"
+const instanceLockPort = "51016"
 
 // App is the Wails application struct. Keep this thin — business logic lives
 // in the daemon package.
