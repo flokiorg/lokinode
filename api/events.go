@@ -30,6 +30,7 @@ func handleEvents(app App) echo.HandlerFunc {
 			if ev.State == daemon.StatusDown {
 				se.AnotherInstance = app.IsAnotherInstanceRunning()
 			}
+			se.MempoolHeight = cachedMempoolHeight(app.ExplorerHost())
 			data, err := json.Marshal(se)
 			if err != nil {
 				log.Error("failed to marshal state event", "err", err)
@@ -90,12 +91,13 @@ func handleEvents(app App) echo.HandlerFunc {
 
 func stateEventFromUpdate(u *daemon.Update) StateEvent {
 	se := StateEvent{
-		State:        string(u.State),
-		NodeRunning:  true,
-		PortConflict: u.PortConflict,
-		BlockHeight:  u.BlockHeight,
-		BlockHash:    u.BlockHash,
-		SyncedHeight: u.SyncedHeight,
+		State:               string(u.State),
+		NodeRunning:         true,
+		PortConflict:        u.PortConflict,
+		BlockHeight:         u.BlockHeight,
+		BlockHash:           u.BlockHash,
+		SyncedHeight:        u.SyncedHeight,
+		BestHeaderTimestamp: u.BestHeaderTimestamp,
 	}
 	if u.Err != nil {
 		se.Error = u.Err.Error()

@@ -185,7 +185,7 @@ func (c *Client) subscribeState() {
 
 			case lnrpc.WalletState_RPC_ACTIVE:
 				c.refreshMacaroon()
-				synced, recentHeader, blockHeight, err := c.IsSynced()
+				synced, recentHeader, blockHeight, _, err := c.IsSynced()
 				if err != nil {
 					// If we get a signature mismatch, try refreshing one more time
 					if strings.Contains(err.Error(), "signature mismatch") {
@@ -202,7 +202,7 @@ func (c *Client) subscribeState() {
 
 			case lnrpc.WalletState_SERVER_ACTIVE:
 				c.refreshMacaroon()
-				_, _, blockHeight, _ := c.IsSynced()
+				_, _, blockHeight, _, _ := c.IsSynced()
 				c.stopSyncPolling()
 				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight})
 				c.subTxsOnce.Do(func() {
@@ -712,15 +712,15 @@ func (c *Client) pollSyncStatus() {
 		case <-stopCh:
 			return
 		case <-ticker.C:
-			synced, recentHeader, blockHeight, err := c.IsSynced()
+			synced, recentHeader, blockHeight, bestTs, err := c.IsSynced()
 			if err != nil {
 				continue
 			}
 			if synced || recentHeader {
-				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight})
+				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 				return
 			}
-			c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight})
+			c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 		}
 	}
 }
@@ -796,10 +796,10 @@ func (c *Client) IsLocked() (bool, error) {
 }
 
 // IsSynced returns whether the chain is synced, whether the header is recent,
-// the current block height, and any error.
-func (c *Client) IsSynced() (bool, bool, uint32, error) {
+// the current block height, the best header timestamp, and any error.
+func (c *Client) IsSynced() (bool, bool, uint32, int64, error) {
 	if c.isClosing() {
-		return false, false, 0, ErrDaemonNotRunning
+		return false, false, 0, 0, ErrDaemonNotRunning
 	}
 	ctx, cancel := c.rpcContext(0)
 	defer cancel()
@@ -809,13 +809,15 @@ func (c *Client) IsSynced() (bool, bool, uint32, error) {
 		resp = nil
 	}
 	var blockHeight uint32
+	var bestHeaderTs int64
 	var synced bool
 	var recentHeader bool
 	if resp != nil {
-		blockHeight = resp.BlockHeight
+		blockHeight  = resp.BlockHeight
+		bestHeaderTs = resp.BestHeaderTimestamp
 		synced = err == nil && resp.SyncedToChain
 		if !synced && err == nil {
-			blockTime := time.Unix(resp.BestHeaderTimestamp, 0)
+			blockTime := time.Unix(bestHeaderTs, 0)
 			recentHeader = time.Since(blockTime) <= recentHeaderThreshold
 		} else {
 			recentHeader = synced
@@ -825,7 +827,7 @@ func (c *Client) IsSynced() (bool, bool, uint32, error) {
 	c.isSynced = synced
 	c.syncedHeight = blockHeight
 	c.mu.Unlock()
-	return synced, recentHeader, blockHeight, err
+	return synced, recentHeader, blockHeight, bestHeaderTs, err
 }
 
 // GetInfo returns the node info response from FLND.

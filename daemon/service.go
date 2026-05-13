@@ -44,6 +44,7 @@ type Update struct {
 	PortConflict              bool
 	BlockHeight, SyncedHeight uint32
 	BlockHash                 string
+	BestHeaderTimestamp       int64
 }
 
 // OutputLock holds the locking details for a UTXO reserved during PSBT funding.

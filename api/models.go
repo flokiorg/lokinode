@@ -225,15 +225,17 @@ type DirEmptyResponse struct {
 
 // StateEvent is pushed on GET /api/events for every daemon state change.
 type StateEvent struct {
-	State           string           `json:"state"`
-	NodeRunning     bool             `json:"nodeRunning"`
-	Error           string           `json:"error,omitempty"`
-	PortConflict    bool             `json:"portConflict,omitempty"`
-	AnotherInstance bool             `json:"anotherInstance,omitempty"`
-	BlockHeight     uint32           `json:"blockHeight,omitempty"`
-	BlockHash       string           `json:"blockHash,omitempty"`
-	SyncedHeight    uint32           `json:"syncedHeight,omitempty"`
-	Transaction     *TransactionItem `json:"transaction,omitempty"`
+	State               string           `json:"state"`
+	NodeRunning         bool             `json:"nodeRunning"`
+	Error               string           `json:"error,omitempty"`
+	PortConflict        bool             `json:"portConflict,omitempty"`
+	AnotherInstance     bool             `json:"anotherInstance,omitempty"`
+	BlockHeight         uint32           `json:"blockHeight,omitempty"`
+	BlockHash           string           `json:"blockHash,omitempty"`
+	SyncedHeight        uint32           `json:"syncedHeight,omitempty"`
+	Transaction         *TransactionItem `json:"transaction,omitempty"`
+	MempoolHeight       int64            `json:"mempoolHeight,omitempty"`
+	BestHeaderTimestamp int64            `json:"bestHeaderTimestamp,omitempty"`
 }
 
 // ErrorResponse wraps API errors.
