@@ -28,6 +28,8 @@ func registerRoutes(g *echo.Group, app App) {
 	g.GET("/wallet/recovery", handleRecovery(app))
 	g.GET("/wallet/address", handleGetAddress(app))
 	g.POST("/wallet/address/new", handleNewAddress(app))
+	g.GET("/wallet/address/preference", handleGetAddressPreference(app))
+	g.PATCH("/wallet/address/preference", handleSetAddressPreference(app))
 	g.PATCH("/wallet/password", handleChangePassword(app))
 
 	// Transactions

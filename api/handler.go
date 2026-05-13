@@ -34,9 +34,11 @@ type App interface {
 	IsDirEmpty(dir string) (bool, error)
 }
 
-// maxRequestBodyBytes caps incoming request bodies at 64 KB.
-// No legitimate API call in this app requires more.
-const maxRequestBodyBytes = 64 * 1024
+// maxRequestBodyBytes caps incoming request bodies at 4 MB.
+// The /send/finalize-psbt endpoint receives a hex-encoded PSBT that can grow
+// large when the wallet has many small UTXOs (~800 bytes per input as hex), so
+// a limit well above typical PSBT sizes is required.
+const maxRequestBodyBytes = 4 * 1024 * 1024
 
 // NewHandler returns an http.Handler that serves all /api/* routes.
 // Non-matching paths return 404, which tells Wails to fall through to the
@@ -63,8 +65,8 @@ func NewHandler(app App) http.Handler {
 	// L2: token authentication.
 	e.Use(tokenAuth(app))
 
-	// H1: reject request bodies larger than 64 KB.
-	e.Use(middleware.BodyLimit("64K"))
+	// H1: reject request bodies larger than 4 MB.
+	e.Use(middleware.BodyLimit("4M"))
 
 	api := e.Group("/api")
 	registerRoutes(api, app)

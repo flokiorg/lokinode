@@ -74,6 +74,19 @@ type AddressResponse struct {
 	Address string `json:"address"`
 }
 
+// AddressPreferenceResponse is returned by GET /api/wallet/address/preference
+// and PATCH /api/wallet/address/preference.
+// Address is the last unused address for the selected type (empty on GET-only calls).
+type AddressPreferenceResponse struct {
+	AddressType string `json:"addressType"` // "segwit" | "taproot"
+	Address     string `json:"address,omitempty"`
+}
+
+// AddressPreferenceRequest is the body of PATCH /api/wallet/address/preference.
+type AddressPreferenceRequest struct {
+	AddressType string `json:"addressType"` // "segwit" | "taproot"
+}
+
 // FeesResponse is returned by GET /api/fees/recommended.
 type FeesResponse struct {
 	FastestFee  int64 `json:"fastestFee"`

@@ -38,6 +38,7 @@ type AppConfig struct {
 }
 
 const (
-	ConfigKeyLastNodePubKey = "last_node_pubkey"
-	ConfigKeyLastNodeDir    = "last_node_dir"
+	ConfigKeyLastNodePubKey        = "last_node_pubkey"
+	ConfigKeyLastNodeDir           = "last_node_dir"
+	ConfigKeyPreferredAddressType  = "preferred_address_type"
 )

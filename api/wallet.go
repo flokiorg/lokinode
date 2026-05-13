@@ -11,7 +11,9 @@ import (
 	"github.com/flokiorg/flnd/lnrpc"
 	"github.com/labstack/echo/v4"
 	"github.com/flokiorg/lokinode/daemon"
+	"github.com/flokiorg/lokinode/db"
 	"github.com/flokiorg/lokinode/lokilog"
+	"gorm.io/gorm"
 )
 
 var log *slog.Logger = lokilog.For("api")
@@ -136,34 +138,87 @@ func handleRecovery(app App) echo.HandlerFunc {
 	}
 }
 
+// storedAddrTypeKey reads the raw preference value from DB ("segwit" or "taproot").
+// Defaults to "segwit" when not set.
+func storedAddrTypeKey(database *gorm.DB) string {
+	var cfg db.AppConfig
+	if err := database.First(&cfg, "key = ?", db.ConfigKeyPreferredAddressType).Error; err != nil {
+		return "segwit"
+	}
+	if cfg.Value == "taproot" {
+		return "taproot"
+	}
+	return "segwit"
+}
+
+// unusedAddrType maps a preference key to the FLND UNUSED_* type so that
+// GET /wallet/address always returns the last unused address without consuming
+// a fresh derivation index.
+func unusedAddrType(key string) lnrpc.AddressType {
+	if key == "taproot" {
+		return lnrpc.AddressType_UNUSED_TAPROOT_PUBKEY
+	}
+	return lnrpc.AddressType_UNUSED_WITNESS_PUBKEY_HASH
+}
+
+// newAddrType maps a preference key to the plain FLND type used when the user
+// explicitly requests a brand-new address.
+func newAddrType(key string) lnrpc.AddressType {
+	if key == "taproot" {
+		return lnrpc.AddressType_TAPROOT_PUBKEY
+	}
+	return lnrpc.AddressType_WITNESS_PUBKEY_HASH
+}
+
+func handleGetAddressPreference(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		addrType := storedAddrTypeKey(app.GetDB())
+		return c.JSON(http.StatusOK, AddressPreferenceResponse{AddressType: addrType})
+	}
+}
+
+// handleSetAddressPreference saves the preference and returns the last unused
+// address for the new type in a single round-trip so the frontend never has to
+// fire a second request after switching types.
+func handleSetAddressPreference(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		svc := app.Service()
+		if svc == nil {
+			return svcErr(c)
+		}
+		var req AddressPreferenceRequest
+		if err := c.Bind(&req); err != nil {
+			return apiErr(c, http.StatusBadRequest, err)
+		}
+		if req.AddressType != "segwit" && req.AddressType != "taproot" {
+			return apiErr(c, http.StatusBadRequest, errors.New("addressType must be 'segwit' or 'taproot'"))
+		}
+		cfg := db.AppConfig{Key: db.ConfigKeyPreferredAddressType, Value: req.AddressType}
+		if err := app.GetDB().Save(&cfg).Error; err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		addr, err := svc.NewAddress(unusedAddrType(req.AddressType))
+		if err != nil {
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		return c.JSON(http.StatusOK, AddressPreferenceResponse{
+			AddressType: req.AddressType,
+			Address:     addr,
+		})
+	}
+}
+
+// handleGetAddress returns the last unused address for the preferred type.
+// FLND's LastUnusedAddress advances automatically once an address is funded,
+// so this is always the right address to show — no DB tracking required.
 func handleGetAddress(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		svc := app.Service()
 		if svc == nil {
 			return svcErr(c)
 		}
-
-		// Try to find the last generated address first to avoid rotation on every GET.
-		// This follows the standard behavior where a receiving address is "sticky"
-		// until used or explicitly rotated.
-		resp, err := svc.ListAddresses()
-		if err == nil && resp != nil {
-			var lastAddr string
-			for _, acc := range resp.AccountWithAddresses {
-				for _, addr := range acc.Addresses {
-					// We only care about external (receiving) addresses
-					if !addr.IsInternal {
-						lastAddr = addr.Address
-					}
-				}
-			}
-			if lastAddr != "" {
-				return c.JSON(http.StatusOK, AddressResponse{Address: lastAddr})
-			}
-		}
-
-		// Fallback: generate a new one if none exist
-		addr, err := svc.NewAddress(lnrpc.AddressType_WITNESS_PUBKEY_HASH)
+		key := storedAddrTypeKey(app.GetDB())
+		addr, err := svc.NewAddress(unusedAddrType(key))
 		if err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
@@ -171,13 +226,16 @@ func handleGetAddress(app App) echo.HandlerFunc {
 	}
 }
 
+// handleNewAddress explicitly advances the derivation index and returns a
+// fresh address of the preferred type (explicit user "rotate" action).
 func handleNewAddress(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		svc := app.Service()
 		if svc == nil {
 			return svcErr(c)
 		}
-		addr, err := svc.NewAddress(lnrpc.AddressType_WITNESS_PUBKEY_HASH)
+		key := storedAddrTypeKey(app.GetDB())
+		addr, err := svc.NewAddress(newAddrType(key))
 		if err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
