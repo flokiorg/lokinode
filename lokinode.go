@@ -17,6 +17,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+var mainLog = lokilog.For("main")
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
@@ -110,6 +112,6 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		mainLog.Error().Err(err).Msg("wails run failed")
 	}
 }

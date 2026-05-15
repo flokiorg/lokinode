@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,10 +12,11 @@ import (
 	"github.com/flokiorg/lokinode/daemon"
 	"github.com/flokiorg/lokinode/db"
 	"github.com/flokiorg/lokinode/lokilog"
+	"github.com/rs/zerolog"
 	"gorm.io/gorm"
 )
 
-var log *slog.Logger = lokilog.For("api")
+var log zerolog.Logger = lokilog.For("api")
 
 // Sentinel errors returned to callers — generic enough not to leak internals.
 var (
@@ -31,12 +31,12 @@ var (
 func handleLock(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if !lifecycleLimiter.Allow() {
-			log.Warn("lock rate-limited")
+			log.Warn().Msg("lock rate-limited")
 			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
 		}
-		log.Info("wallet lock requested")
+		log.Info().Msg("wallet lock requested")
 		if err := app.RestartNode(); err != nil {
-			log.Error("wallet lock failed", "err", err)
+			log.Error().Err(err).Msg("wallet lock failed")
 			return apiErr(c, http.StatusServiceUnavailable, err)
 		}
 		return c.NoContent(http.StatusNoContent)
@@ -61,11 +61,11 @@ func handleUnlock(app App) echo.HandlerFunc {
 			return apiErr(c, http.StatusBadRequest, errors.New("password is required"))
 		}
 		if err := svc.Unlock(req.Password); err != nil {
-			log.Warn("unlock failed", "err", err)
+			log.Warn().Err(err).Msg("unlock failed")
 			// M1: return a generic message — don't echo the gRPC error.
 			return apiErr(c, http.StatusUnauthorized, errInvalidPassword)
 		}
-		log.Info("wallet unlocked")
+		log.Info().Msg("wallet unlocked")
 		return c.NoContent(http.StatusNoContent)
 	}
 }
@@ -83,9 +83,13 @@ func handleInitWallet(app App) echo.HandlerFunc {
 		if req.Password == "" {
 			return apiErr(c, http.StatusBadRequest, errors.New("password is required"))
 		}
+		restore := req.Mnemonic != "" || req.Hex != ""
+		log.Info().Bool("restore", restore).Msg("wallet init requested")
 		if err := svc.InitWallet(req.Password, req.Mnemonic, req.AezeedPass, req.Hex); err != nil {
+			log.Error().Err(sanitizeGRPC(err)).Msg("wallet init failed")
 			return apiErr(c, http.StatusInternalServerError, sanitizeGRPC(err))
 		}
+		log.Info().Bool("restore", restore).Msg("wallet initialized")
 		return c.NoContent(http.StatusNoContent)
 	}
 }
@@ -101,6 +105,7 @@ func handleGenSeed(app App) echo.HandlerFunc {
 		// wizard to show the seed phrase BEFORE the flnd process is even started,
 		// satisfying the requirement that users must confirm saving their seed
 		// before the node "powers on".
+		log.Info().Msg("seed generation requested")
 		words, err := daemon.GenerateStandaloneSeed([]byte(req.AezeedPass))
 		if err == nil {
 			return c.JSON(http.StatusOK, MnemonicResponse{Mnemonic: words})
@@ -197,6 +202,7 @@ func handleSetAddressPreference(app App) echo.HandlerFunc {
 		if err := app.GetDB().Save(&cfg).Error; err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
+		log.Info().Str("address_type", req.AddressType).Msg("address type preference updated")
 		addr, err := svc.NewAddress(unusedAddrType(req.AddressType))
 		if err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
@@ -258,7 +264,7 @@ func handleChangePassword(app App) echo.HandlerFunc {
 		// handle the full stop-restart-update-unlock dance internally.
 		lastState := svc.GetLastEvent()
 		if lastState != nil && (lastState.State == daemon.StatusReady || lastState.State == daemon.StatusSyncing) {
-			log.Info("password change requested on active node; initiating automated stop-update-unlock flow")
+			log.Info().Msg("password change requested on active node; initiating automated stop-update-unlock flow")
 
 			// 1. Force a restart to bring the node to StatusLocked.
 			if err := svc.Restart(); err != nil {
@@ -275,18 +281,18 @@ func handleChangePassword(app App) echo.HandlerFunc {
 
 		// 3. Apply the password change (requires StatusLocked).
 		if err := svc.ChangePassphrase(req.CurrentPassword, req.NewPassword); err != nil {
-			log.Warn("change password failed", "err", err)
+			log.Warn().Err(err).Msg("change password failed")
 			return apiErr(c, http.StatusInternalServerError, sanitizeGRPC(err))
 		}
 
 		// 4. Auto-unlock with the new password to return to the previous state.
 		if err := svc.Unlock(req.NewPassword); err != nil {
-			log.Error("auto-unlock after password change failed", "err", err)
+			log.Error().Err(err).Msg("auto-unlock after password change failed")
 			// Don't return error here, the password IS changed, node just
 			// needs manual unlock or investigation.
 		}
 
-		log.Info("wallet password changed")
+		log.Info().Msg("wallet password changed")
 		return c.NoContent(http.StatusNoContent)
 	}
 }

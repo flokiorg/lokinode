@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,9 +10,10 @@ import (
 	"github.com/flokiorg/lokinode/daemon"
 	"github.com/flokiorg/lokinode/db"
 	"github.com/flokiorg/lokinode/lokilog"
+	"github.com/rs/zerolog"
 )
 
-var log *slog.Logger = lokilog.For("wails")
+var log zerolog.Logger = lokilog.For("wails")
 
 // VerifyConfig validates the user-supplied node config and stores the result
 // for RunNode. It delegates entirely to the daemon package which builds the
@@ -42,8 +42,10 @@ func (a *App) VerifyConfig(ucfg daemon.UserNodeConfig) error {
 
 	cfg, err := daemon.BuildAndValidate(interceptor, ucfg)
 	if err != nil {
+		log.Error().Err(err).Str("dir", ucfg.Dir).Msg("config validation failed")
 		return err
 	}
+	log.Info().Str("dir", ucfg.Dir).Bool("public", ucfg.NodePublic).Msg("config validated")
 	a.flndCfg = cfg
 	return nil
 }
@@ -129,19 +131,19 @@ func (a *App) IsDirEmpty(path string) (bool, error) {
 // call StopNode() first, then RunNode().
 func (a *App) RunNode() error {
 	if a.flndCfg == nil {
-		log.Warn("RunNode called without a validated config")
+		log.Warn().Msg("RunNode called without a validated config")
 		return errNoProfile
 	}
 
 	a.nodeServiceMu.Lock()
 	if a.nodeService != nil {
 		a.nodeServiceMu.Unlock()
-		log.Debug("RunNode noop (service already attached)")
+		log.Debug().Msg("RunNode noop (service already attached)")
 		return nil
 	}
 	a.nodeService = daemon.New(a.ctx, a.flndCfg)
 	a.nodeServiceMu.Unlock()
-	log.Info("RunNode: service created")
+	log.Info().Msg("RunNode: service created")
 	return nil
 }
 
@@ -171,10 +173,10 @@ func (a *App) StopNode() {
 	a.nodeServiceMu.Unlock()
 
 	if svc != nil {
-		log.Info("StopNode: stopping attached service")
+		log.Info().Msg("StopNode: stopping attached service")
 		svc.Stop()
 	} else {
-		log.Debug("StopNode noop (no attached service)")
+		log.Debug().Msg("StopNode noop (no attached service)")
 	}
 }
 
@@ -189,7 +191,7 @@ func (a *App) RestartNode() error {
 	a.nodeServiceMu.Unlock()
 
 	if svc == nil {
-		log.Warn("RestartNode called but no service attached")
+		log.Warn().Msg("RestartNode called but no service attached")
 		return daemon.ErrDaemonNotRunning
 	}
 
@@ -208,6 +210,6 @@ func (a *App) RestartNode() error {
 	}
 	a.flndCfg = cfg
 
-	log.Info("RestartNode: bouncing daemon")
+	log.Info().Msg("RestartNode: bouncing daemon")
 	return svc.RestartWithConfig(cfg)
 }

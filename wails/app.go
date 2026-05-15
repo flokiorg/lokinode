@@ -84,6 +84,7 @@ func (a *App) Startup(ctx context.Context) {
 	// Try to acquire the singleton lock. On failure another instance is running.
 	ln, err := net.Listen("tcp4", "127.0.0.1:"+instanceLockPort)
 	if err == nil {
+		log.Info().Msg("singleton lock acquired")
 		a.singletonLn = ln
 		// Accept connections as a fallback show-signal: when a second instance
 		// connects to the port (via TrySignalRunningInstance) and Wails' own IPC
@@ -99,20 +100,23 @@ func (a *App) Startup(ctx context.Context) {
 				runtime.WindowShow(ctx)
 			}
 		}()
+	} else {
+		log.Warn().Msg("another instance detected; singleton lock not acquired")
 	}
 
 	// Initialize database
 	gormDB, err := db.Init()
 	if err != nil {
-		// Log error and proceed if possible, though node management will be degraded
-		fmt.Printf("failed to initialize database: %v\n", err)
+		log.Error().Err(err).Msg("database init failed; node management will be degraded")
 	} else {
+		log.Info().Msg("database initialized")
 		a.db = gormDB
 	}
 }
 
 // Shutdown is called by Wails when the application is about to quit.
 func (a *App) Shutdown(_ context.Context) {
+	log.Info().Msg("app shutdown initiated")
 	if a.singletonLn != nil {
 		a.singletonLn.Close()
 	}
@@ -122,6 +126,7 @@ func (a *App) Shutdown(_ context.Context) {
 	if svc != nil {
 		svc.Stop()
 	}
+	log.Info().Msg("app shutdown complete")
 }
 
 // IsAnotherInstanceRunning reports whether a second Lokinode window is open.

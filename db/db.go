@@ -5,10 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/adrg/xdg"
+	"github.com/flokiorg/lokinode/lokilog"
+	"github.com/rs/zerolog"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+var log zerolog.Logger = lokilog.For("db")
 
 
 // Init opens (or creates) the Lokinode SQLite database and runs all pending
@@ -39,9 +43,11 @@ func Init() (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(1)
 
 	if err := migrateSchema(db); err != nil {
+		log.Error().Err(err).Msg("schema migration failed")
 		return nil, err
 	}
 
+	log.Info().Str("path", filepath.Join(workDir, "lokinode.db")).Msg("database initialized")
 	return db, nil
 }
 

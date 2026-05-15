@@ -20,6 +20,8 @@ func handleEvents(app App) echo.HandlerFunc {
 		h.Set("X-Accel-Buffering", "no")
 		h.Set("Transfer-Encoding", "identity")
 		c.Response().WriteHeader(http.StatusOK)
+		log.Info().Msg("SSE client connected")
+		defer log.Info().Msg("SSE client disconnected")
 
 		ctx := c.Request().Context()
 		heartbeat := time.NewTicker(15 * time.Second)
@@ -33,9 +35,10 @@ func handleEvents(app App) echo.HandlerFunc {
 			se.MempoolHeight = cachedMempoolHeight(app.ExplorerHost())
 			data, err := json.Marshal(se)
 			if err != nil {
-				log.Error("failed to marshal state event", "err", err)
+				log.Error().Err(err).Msg("failed to marshal state event")
 				return false
 			}
+			log.Trace().Str("state", se.State).Msg("SSE event emitted")
 			_, werr := fmt.Fprintf(c.Response(), "data: %s\n\n", data)
 			c.Response().Flush()
 			return werr == nil

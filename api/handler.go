@@ -52,8 +52,7 @@ func NewHandler(app App) http.Handler {
 	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
 		DisablePrintStack: true,
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
-			// Log to stderr without sending the stack to the client.
-			c.Logger().Errorf("panic recovered: %v", err)
+			log.Error().Err(err).Str("path", c.Request().URL.Path).Msg("panic recovered")
 			return nil
 		},
 	}))
@@ -128,7 +127,7 @@ func tokenAuth(app App) echo.MiddlewareFunc {
 			}
 
 			if token != validToken {
-				c.Logger().Warn("unauthorized request rejected")
+				log.Warn().Str("path", c.Request().URL.Path).Msg("unauthorized request rejected")
 				return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 			}
 			return next(c)

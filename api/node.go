@@ -17,12 +17,12 @@ import (
 func handleNodeStart(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if !lifecycleLimiter.Allow() {
-			log.Warn("node start rate-limited")
+			log.Warn().Msg("node start rate-limited")
 			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
 		}
-		log.Info("node start requested")
+		log.Info().Msg("node start requested")
 		if err := app.RunNode(); err != nil {
-			log.Error("node start failed", "err", err)
+			log.Error().Err(err).Msg("node start failed")
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
 		return c.NoContent(http.StatusNoContent)
@@ -32,10 +32,10 @@ func handleNodeStart(app App) echo.HandlerFunc {
 func handleNodeStop(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if !lifecycleLimiter.Allow() {
-			log.Warn("node stop rate-limited")
+			log.Warn().Msg("node stop rate-limited")
 			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
 		}
-		log.Info("node stop requested")
+		log.Info().Msg("node stop requested")
 		app.StopNode()
 		return c.NoContent(http.StatusNoContent)
 	}
@@ -44,10 +44,10 @@ func handleNodeStop(app App) echo.HandlerFunc {
 func handleNodeRestart(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if !lifecycleLimiter.Allow() {
-			log.Warn("node restart rate-limited")
+			log.Warn().Msg("node restart rate-limited")
 			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
 		}
-		log.Info("node restart requested")
+		log.Info().Msg("node restart requested")
 		if err := app.RestartNode(); err != nil {
 			return apiErr(c, http.StatusInternalServerError, err)
 		}
@@ -297,9 +297,11 @@ func handleSaveNodeConfig(app App) echo.HandlerFunc {
 				if err := tx.Where("pub_key = ? AND dir != ?", req.PubKey, req.Dir).
 					First(&stale).Error; err == nil {
 
-					log.Info("node directory change detected — migrating settings",
-						"pubkey", req.PubKey[:min(8, len(req.PubKey))],
-						"old", stale.Dir, "new", req.Dir)
+					log.Info().
+						Str("pubkey", req.PubKey[:min(8, len(req.PubKey))]).
+						Str("old", stale.Dir).
+						Str("new", req.Dir).
+						Msg("node directory change detected — migrating settings")
 
 					if req.Alias == "" {
 						req.Alias = stale.Alias

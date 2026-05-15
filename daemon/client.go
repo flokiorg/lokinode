@@ -144,6 +144,7 @@ func (c *Client) subscribeState() {
 			if !hasAdvancedState {
 				connectAttempts++
 				if connectAttempts >= maxConnectAttempts {
+					log.Error().Err(err).Int("attempts", connectAttempts).Msg("state subscription: max connect attempts reached; reporting down")
 					c.submitHealth(Update{State: StatusDown, Err: err})
 					return
 				}
@@ -167,19 +168,23 @@ func (c *Client) subscribeState() {
 			switch r.State {
 			case lnrpc.WalletState_NON_EXISTING:
 				hasAdvancedState = true
+				log.Info().Msg("wallet state: no wallet exists")
 				c.submitHealth(Update{State: StatusNoWallet})
 
 			case lnrpc.WalletState_LOCKED:
 				hasAdvancedState = true
+				log.Info().Msg("wallet state: locked")
 				c.submitHealth(Update{State: StatusLocked})
 
 			case lnrpc.WalletState_UNLOCKED:
 				hasAdvancedState = true
 				c.refreshMacaroon()
+				log.Info().Msg("wallet state: unlocked")
 				c.submitHealth(Update{State: StatusUnlocked})
 
 			case lnrpc.WalletState_WAITING_TO_START:
 				if !hasAdvancedState {
+					log.Trace().Msg("wallet state: waiting to start")
 					c.submitHealth(Update{State: StatusStarting})
 				}
 
@@ -193,9 +198,11 @@ func (c *Client) subscribeState() {
 					}
 					continue
 				} else if synced || recentHeader {
+					log.Info().Uint32("block_height", blockHeight).Msg("wallet state: rpc active — synced")
 					c.stopSyncPolling()
 					c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight})
 				} else {
+					log.Info().Uint32("block_height", blockHeight).Msg("wallet state: rpc active — syncing")
 					c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight})
 					go c.pollSyncStatus()
 				}
@@ -203,6 +210,7 @@ func (c *Client) subscribeState() {
 			case lnrpc.WalletState_SERVER_ACTIVE:
 				c.refreshMacaroon()
 				_, _, blockHeight, _, _ := c.IsSynced()
+				log.Info().Uint32("block_height", blockHeight).Msg("wallet state: server active (ready)")
 				c.stopSyncPolling()
 				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight})
 				c.subTxsOnce.Do(func() {
@@ -216,6 +224,7 @@ func (c *Client) subscribeState() {
 		// Otherwise reconnect — the FLND process is still running, only the
 		// gRPC transport dropped (e.g. server-side keepalive timeout while the
 		// app was backgrounded by macOS App Nap).
+		log.Trace().Msg("state subscription stream broke; reconnecting")
 		if c.isClosing() {
 			c.submitHealth(Update{State: StatusDown})
 			return
@@ -250,6 +259,7 @@ func (c *Client) subscribeBlocks() {
 		for {
 			r, err := stream.Recv()
 			if err != nil {
+				log.Trace().Err(err).Msg("block subscription stream broke; reconnecting")
 				break
 			}
 
@@ -265,6 +275,11 @@ func (c *Client) subscribeBlocks() {
 			}
 			c.mu.Unlock()
 
+			if state == StatusScanning {
+				log.Trace().Uint32("chain_tip", r.Height).Uint32("synced_height", syncedHeight).Msg("scanning block")
+			} else {
+				log.Trace().Uint32("height", r.Height).Msg("block received")
+			}
 			c.submitHealth(Update{
 				State:        state,
 				SyncedHeight: syncedHeight,
@@ -305,8 +320,10 @@ func (c *Client) subscribeTransactions() {
 		for {
 			r, err := stream.Recv()
 			if err != nil {
+				log.Trace().Err(err).Msg("tx subscription stream broke; reconnecting")
 				break
 			}
+			log.Info().Str("txid", r.TxHash).Msg("transaction received")
 			c.invalidateTxCache()
 			c.submitHealth(Update{State: StatusTransaction, Transaction: r})
 		}
@@ -500,6 +517,7 @@ func (c *Client) FundPsbt(addrToAmount map[string]int64, lokiPerVbyte uint64, lo
 	if c.isClosing() {
 		return nil, ErrDaemonNotRunning
 	}
+	log.Trace().Uint64("fee_rate", lokiPerVbyte).Int("outputs", len(addrToAmount)).Msg("funding PSBT")
 	outputs := make(map[string]uint64, len(addrToAmount))
 	for a, v := range addrToAmount {
 		outputs[a] = uint64(v)
@@ -535,6 +553,7 @@ func (c *Client) FinalizePsbt(packet *psbt.Packet) (*chainutil.Tx, error) {
 	if c.isClosing() {
 		return nil, ErrDaemonNotRunning
 	}
+	log.Trace().Msg("finalizing PSBT")
 	var buf bytes.Buffer
 	if err := packet.Serialize(&buf); err != nil {
 		return nil, err
@@ -553,17 +572,22 @@ func (c *Client) PublishTransaction(tx *chainutil.Tx) error {
 	if c.isClosing() {
 		return ErrDaemonNotRunning
 	}
+	txid := tx.MsgTx().TxHash().String()
+	log.Info().Str("txid", txid).Msg("publishing transaction")
 	b, err := tx.MsgTx().Bytes()
 	if err != nil {
 		return err
 	}
 	resp, err := c.walletKit.PublishTransaction(c.withMacaroon(), &walletrpc.Transaction{TxHex: b})
 	if err != nil {
+		log.Error().Err(err).Str("txid", txid).Msg("publish transaction failed")
 		return err
 	}
 	if resp.PublishError != "" {
+		log.Error().Str("txid", txid).Str("publish_error", resp.PublishError).Msg("publish transaction rejected")
 		return fmt.Errorf("%s", resp.PublishError)
 	}
+	log.Info().Str("txid", txid).Msg("transaction published")
 	return nil
 }
 
@@ -694,6 +718,8 @@ func (c *Client) pollSyncStatus() {
 	c.syncPollingDone = doneCh
 	c.mu.Unlock()
 
+	log.Info().Msg("sync polling started")
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	defer func() {
@@ -702,6 +728,7 @@ func (c *Client) pollSyncStatus() {
 		c.syncPollingStop = nil
 		c.syncPollingDone = nil
 		c.mu.Unlock()
+		log.Trace().Msg("sync polling stopped")
 		close(doneCh)
 	}()
 
@@ -714,12 +741,15 @@ func (c *Client) pollSyncStatus() {
 		case <-ticker.C:
 			synced, recentHeader, blockHeight, bestTs, err := c.IsSynced()
 			if err != nil {
+				log.Trace().Err(err).Msg("sync poll: IsSynced error")
 				continue
 			}
 			if synced || recentHeader {
+				log.Info().Uint32("block_height", blockHeight).Time("best_header", time.Unix(bestTs, 0)).Msg("chain sync complete")
 				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 				return
 			}
+			log.Trace().Uint32("block_height", blockHeight).Time("best_header", time.Unix(bestTs, 0)).Msg("sync progress")
 			c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 		}
 	}
@@ -1207,6 +1237,7 @@ func (c *Client) SendCoins(address string, amountLoki int64, lokiPerVbyte int64)
 	if c.isClosing() {
 		return "", ErrDaemonNotRunning
 	}
+	log.Info().Int64("amount_loki", amountLoki).Int64("fee_rate", lokiPerVbyte).Msg("send coins requested")
 	ctx, cancel := c.rpcContext(0)
 	defer cancel()
 	resp, err := c.lnClient.SendCoins(ctx, &lnrpc.SendCoinsRequest{
@@ -1215,8 +1246,10 @@ func (c *Client) SendCoins(address string, amountLoki int64, lokiPerVbyte int64)
 		SatPerVbyte: uint64(lokiPerVbyte),
 	})
 	if err != nil {
+		log.Error().Err(err).Msg("send coins failed")
 		return "", err
 	}
+	log.Info().Str("txid", resp.Txid).Msg("send coins succeeded")
 	return resp.Txid, nil
 }
 
@@ -1388,7 +1421,7 @@ func (c *Client) refreshMacaroon() {
 		c.mu.Lock()
 		c.adminMacHex = macHex
 		c.mu.Unlock()
-		log.Debug("refreshed admin macaroon from disk")
+		log.Debug().Msg("refreshed admin macaroon from disk")
 	}
 }
 

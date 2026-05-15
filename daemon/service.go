@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -14,9 +13,10 @@ import (
 	"github.com/flokiorg/go-flokicoin/chainutil"
 	"github.com/flokiorg/go-flokicoin/chainutil/psbt"
 	"github.com/flokiorg/lokinode/lokilog"
+	"github.com/rs/zerolog"
 )
 
-var log *slog.Logger = lokilog.For("daemon")
+var log zerolog.Logger = lokilog.For("daemon")
 
 // Status represents the current lifecycle state of the FLND node.
 type Status string
@@ -129,7 +129,7 @@ func (s *Service) run() {
 	for {
 		select {
 		case <-s.ctx.Done():
-			log.Info("service context cancelled; stopping daemon")
+			log.Info().Msg("service context cancelled; stopping daemon")
 			s.stopDaemon()
 			return
 		default:
@@ -154,7 +154,7 @@ func (s *Service) run() {
 // runOnce performs one full daemon lifecycle. Returns nil on a clean shutdown
 // (no auto-retry needed) or the captured crash error otherwise.
 func (s *Service) runOnce() error {
-	log.Info("service entering starting phase")
+	log.Info().Msg("service entering starting phase")
 	s.notifySubscribers(&Update{State: StatusStarting})
 
 	interceptor, err := s.acquireSignalInterceptor()
@@ -170,12 +170,12 @@ func (s *Service) runOnce() error {
 		select {
 		case <-interceptor.ShutdownChannel():
 		case <-time.After(2 * time.Second):
-			log.Warn("signal interceptor did not drain after newDaemon failure")
+			log.Warn().Msg("signal interceptor did not drain after newDaemon failure")
 		}
 		return s.failStartup("newDaemon", err)
 	}
 
-	log.Info("daemon start: calling d.start()")
+	log.Info().Msg("daemon start: calling d.start()")
 	c, err := d.start()
 	if err != nil {
 		// d.start()'s defer already called d.stop() which triggered RequestShutdown
@@ -183,19 +183,19 @@ func (s *Service) runOnce() error {
 		// release OS resources (ports, wallet DB) so the next Retry starts clean.
 		// The wait is bounded: if flnd.Main is unresponsive we must still publish
 		// StatusDown so the UI exits the "Starting" screen and shows the error.
-		log.Info("daemon start failed; waiting up to 10s for goroutine cleanup", "err", err)
+		log.Info().Err(err).Msg("daemon start failed; waiting up to 10s for goroutine cleanup")
 		cleanupDone := make(chan struct{})
 		go func() { d.wg.Wait(); close(cleanupDone) }()
 		select {
 		case <-cleanupDone:
-			log.Info("daemon goroutine exited cleanly after start failure")
+			log.Info().Msg("daemon goroutine exited cleanly after start failure")
 		case <-time.After(10 * time.Second):
-			log.Warn("daemon goroutine still running 10s after start failure; proceeding to error state (Retry may see port conflict)")
+			log.Warn().Msg("daemon goroutine still running 10s after start failure; proceeding to error state (Retry may see port conflict)")
 		}
 		return s.failStartup("daemon start", err)
 	}
 
-	log.Info("daemon started; subscribing to health stream")
+	log.Info().Msg("daemon started; subscribing to health stream")
 	return s.superviseDaemon(d, c)
 }
 
@@ -215,7 +215,7 @@ func (s *Service) superviseDaemon(d *flndDaemon, c *Client) error {
 
 	s.registerConnection(d, c)
 	d.waitForShutdown()
-	log.Info("daemon shutdown complete; run loop will restart")
+	log.Info().Msg("daemon shutdown complete; run loop will restart")
 
 	// Cancel the relay and wait for it to drain. The channel receive
 	// establishes happens-before with every write the relay made — including
@@ -239,7 +239,7 @@ func (s *Service) runHealthRelay(ctx context.Context, d *flndDaemon, c *Client) 
 	for {
 		select {
 		case <-ctx.Done():
-			lokilog.Trace(log, "health relay exiting on ctx cancel")
+			log.Trace().Msg("health relay exiting on ctx cancel")
 			// Idempotent: if d.stop was already called, this is a no-op.
 			d.stop()
 			return crashErr
@@ -251,13 +251,13 @@ func (s *Service) runHealthRelay(ctx context.Context, d *flndDaemon, c *Client) 
 			// stream will error and emit StatusDown. Forwarding that would
 			// flash a fake "node down" across the UI during Lock/Restart.
 			if d.isStopping() {
-				lokilog.Trace(log, "suppressing health update (daemon stopping)", "state", string(health.State))
+				log.Trace().Str("state", string(health.State)).Msg("suppressing health update (daemon stopping)")
 				continue
 			}
-			lokilog.Trace(log, "health update", "state", string(health.State), "port_conflict", health.PortConflict)
+			log.Trace().Str("state", string(health.State)).Bool("port_conflict", health.PortConflict).Msg("health update")
 			s.notifySubscribers(health)
 			if health.State == StatusDown {
-				log.Warn("health reported down; stopping daemon", "err", health.Err)
+				log.Warn().Err(health.Err).Msg("health reported down; stopping daemon")
 				if crashErr == nil {
 					crashErr = health.Err
 				}
@@ -278,23 +278,23 @@ func (s *Service) acquireSignalInterceptor() (signal.Interceptor, error) {
 		interceptor, err := signal.Intercept()
 		if err == nil {
 			if attempts > 0 {
-				log.Info("signal interceptor acquired after retry", "attempts", attempts)
+				log.Info().Int("attempts", attempts).Msg("signal interceptor acquired after retry")
 			}
 			return interceptor, nil
 		}
 		if !strings.Contains(err.Error(), "already started") {
-			log.Error("signal interceptor failed with unexpected error", "err", err)
+			log.Error().Err(err).Msg("signal interceptor failed with unexpected error")
 			return interceptor, err
 		}
 		attempts++
 		if attempts == 1 {
-			log.Info("signal interceptor busy (previous daemon still cleaning up); retrying", "err", err)
+			log.Info().Err(err).Msg("signal interceptor busy (previous daemon still cleaning up); retrying")
 		} else if attempts%200 == 0 {
-			log.Warn("signal interceptor still busy after retries", "attempts", attempts, "waited_ms", attempts*5)
+			log.Warn().Int("attempts", attempts).Int("waited_ms", attempts*5).Msg("signal interceptor still busy after retries")
 		}
 		select {
 		case <-s.ctx.Done():
-			log.Warn("service ctx cancelled while waiting for signal interceptor", "attempts", attempts)
+			log.Warn().Int("attempts", attempts).Msg("service ctx cancelled while waiting for signal interceptor")
 			return interceptor, s.ctx.Err()
 		case <-time.After(5 * time.Millisecond):
 		}
@@ -304,7 +304,7 @@ func (s *Service) acquireSignalInterceptor() (signal.Interceptor, error) {
 // failStartup publishes a StatusDown event for a startup-phase error and
 // returns the error so runOnce can hand it to the retry-gate.
 func (s *Service) failStartup(stage string, err error) error {
-	log.Error("daemon startup failed", "stage", stage, "err", err, "port_conflict", isPortConflict(err))
+	log.Error().Str("stage", stage).Err(err).Bool("port_conflict", isPortConflict(err)).Msg("daemon startup failed")
 	s.notifySubscribers(&Update{State: StatusDown, Err: err, PortConflict: isPortConflict(err)})
 	return err
 }
@@ -337,12 +337,12 @@ func (s *Service) cloneConfig() *flnd.Config {
 // Stop shuts down the service and the underlying daemon cleanly. Idempotent.
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
-		log.Info("service stop requested")
+		log.Info().Msg("service stop requested")
 		s.stopDaemon()
 		s.cancel()
 		s.unsubscribeAll()
 		s.wg.Wait()
-		log.Info("service stopped")
+		log.Info().Msg("service stopped")
 	})
 }
 
@@ -393,14 +393,14 @@ func (s *Service) RestartWithConfig(cfg *flnd.Config) error {
 	if d != nil {
 		// Daemon is running — stop it; the run() loop's waitForShutdown will
 		// unblock and restart automatically.
-		log.Info("restart requested; stopping daemon")
+		log.Info().Msg("restart requested; stopping daemon")
 		d.stop()
 	} else {
 		// Daemon is not running: either it crashed before gRPC came up, or it
 		// crashed after and the run loop is sleeping in waitForRetry. Signal the
 		// channel to wake it up immediately so the next attempt starts without
 		// waiting for the full backoff delay.
-		log.Info("restart requested; daemon not running, interrupting retry delay")
+		log.Info().Msg("restart requested; daemon not running, interrupting retry delay")
 		select {
 		case s.retryNow <- struct{}{}:
 		default:

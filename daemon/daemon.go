@@ -11,7 +11,6 @@ import (
 
 	"github.com/flokiorg/flnd"
 	"github.com/flokiorg/flnd/signal"
-	"github.com/flokiorg/lokinode/lokilog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
@@ -77,18 +76,18 @@ func (d *flndDaemon) start() (c *Client, err error) {
 	impl := d.config.ImplementationConfig(d.interceptor)
 	defer func() {
 		if err != nil {
-			log.Error("daemon start aborted; calling d.stop()", "err", err)
+			log.Error().Err(err).Msg("daemon start aborted; calling d.stop()")
 			d.stop()
-			log.Info("d.stop() returned after start abort")
+			log.Info().Msg("d.stop() returned after start abort")
 		}
 	}()
 
-	log.Info("daemon exec starting (waiting for flndStarted signal)")
+	log.Info().Msg("daemon exec starting (waiting for flndStarted signal)")
 	if err = d.exec(impl); err != nil {
-		log.Error("daemon exec failed", "err", err)
+		log.Error().Err(err).Msg("daemon exec failed")
 		return
 	}
-	log.Info("daemon exec signalled ready; dialing gRPC")
+	log.Info().Msg("daemon exec signalled ready; dialing gRPC")
 
 	var creds credentials.TransportCredentials
 	creds, err = tlsCreds(d.config.TLSCertPath)
@@ -167,16 +166,16 @@ func (d *flndDaemon) exec(impl *flnd.ImplementationCfg) error {
 
 	select {
 	case err := <-errCh:
-		log.Error("flnd.Main returned error before signalling ready", "err", err)
+		log.Error().Err(err).Msg("flnd.Main returned error before signalling ready")
 		return err
 	case <-flndStarted:
-		log.Info("flndStarted signal received")
+		log.Info().Msg("flndStarted signal received")
 		return nil
 	case <-d.ctx.Done():
-		log.Warn("exec aborted: daemon context cancelled before flndStarted", "err", d.ctx.Err())
+		log.Warn().Err(d.ctx.Err()).Msg("exec aborted: daemon context cancelled before flndStarted")
 		return d.ctx.Err()
 	case <-time.After(execStartupTimeout):
-		log.Error("exec timeout: flnd.Main did not signal ready within timeout", "timeout", execStartupTimeout)
+		log.Error().Dur("timeout", execStartupTimeout).Msg("exec timeout: flnd.Main did not signal ready within timeout")
 		return fmt.Errorf("flnd startup timeout after %s", execStartupTimeout)
 	}
 }
@@ -192,32 +191,32 @@ func (d *flndDaemon) waitForShutdown() {
 	go func() { d.wg.Wait(); close(done) }()
 
 	wfsStarted := time.Now()
-	log.Info("waitForShutdown: entering")
+	log.Info().Msg("waitForShutdown: entering")
 	// Phase 1: block indefinitely until the daemon exits on its own OR a
 	// shutdown is requested.
 	select {
 	case <-done:
-		log.Info("waitForShutdown: phase1 — exec goroutine exited naturally (no shutdown request)", "elapsed", time.Since(wfsStarted))
+		log.Info().Dur("elapsed", time.Since(wfsStarted)).Msg("waitForShutdown: phase1 — exec goroutine exited naturally (no shutdown request)")
 		// Daemon exited naturally (crash or self-termination without an explicit
 		// d.stop call). The signal interceptor's mainInterruptHandler goroutine
 		// may still be running — request shutdown so it exits and clears the
 		// global `started` flag. Without this, the next acquireSignalInterceptor
 		// call (e.g. on Retry) would spin forever on "already started".
-		log.Info("waitForShutdown: phase1 — requesting interceptor shutdown")
+		log.Info().Msg("waitForShutdown: phase1 — requesting interceptor shutdown")
 		d.interceptor.RequestShutdown()
 		select {
 		case <-d.interceptor.ShutdownChannel():
-			log.Info("waitForShutdown: phase1 — interceptor shutdown channel drained")
+			log.Info().Msg("waitForShutdown: phase1 — interceptor shutdown channel drained")
 		case <-time.After(2 * time.Second):
-			log.Warn("waitForShutdown: phase1 — interceptor shutdown channel did not drain within 2s")
+			log.Warn().Msg("waitForShutdown: phase1 — interceptor shutdown channel did not drain within 2s")
 		}
 		d.mu.Lock()
 		d.closed = true
 		d.mu.Unlock()
-		log.Info("waitForShutdown: phase1 — done")
+		log.Info().Msg("waitForShutdown: phase1 — done")
 		return
 	case <-d.ctx.Done():
-		log.Info("waitForShutdown: phase2 — shutdown requested; awaiting exec drain", "elapsed_before_ctx", time.Since(wfsStarted))
+		log.Info().Dur("elapsed_before_ctx", time.Since(wfsStarted)).Msg("waitForShutdown: phase2 — shutdown requested; awaiting exec drain")
 	}
 
 	// Phase 2: shutdown requested — wait for flnd.Main to actually return.
@@ -226,35 +225,35 @@ func (d *flndDaemon) waitForShutdown() {
 	// on the very next RunNode call ("address already in use").
 	select {
 	case <-done:
-		log.Info("waitForShutdown: phase2 — exec goroutine drained", "elapsed", time.Since(wfsStarted))
+		log.Info().Dur("elapsed", time.Since(wfsStarted)).Msg("waitForShutdown: phase2 — exec goroutine drained")
 	case <-time.After(8 * time.Second):
-		log.Warn("waitForShutdown: phase2 — exec goroutine did not drain within 8s; still waiting (port held!)")
+		log.Warn().Msg("waitForShutdown: phase2 — exec goroutine did not drain within 8s; still waiting (port held!)")
 		<-done
-		log.Warn("waitForShutdown: phase2 — exec goroutine finally drained (slow shutdown)", "elapsed", time.Since(wfsStarted))
+		log.Warn().Dur("elapsed", time.Since(wfsStarted)).Msg("waitForShutdown: phase2 — exec goroutine finally drained (slow shutdown)")
 	}
 
 	select {
 	case <-d.interceptor.ShutdownChannel():
-		log.Info("waitForShutdown: phase2 — interceptor shutdown channel drained")
+		log.Info().Msg("waitForShutdown: phase2 — interceptor shutdown channel drained")
 	case <-time.After(2 * time.Second):
-		log.Warn("waitForShutdown: phase2 — interceptor shutdown channel did not drain within 2s")
+		log.Warn().Msg("waitForShutdown: phase2 — interceptor shutdown channel did not drain within 2s")
 	}
 
 	d.mu.Lock()
 	d.closed = true
 	d.mu.Unlock()
-	log.Info("waitForShutdown: done", "elapsed", time.Since(wfsStarted))
+	log.Info().Dur("elapsed", time.Since(wfsStarted)).Msg("waitForShutdown: done")
 }
 
 func (d *flndDaemon) stop() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.closed {
-		lokilog.Trace(log, "daemon stop noop (already closed)")
+		log.Trace().Msg("daemon stop noop (already closed)")
 		return
 	}
 	d.stopping = true
-	log.Info("daemon stop: tearing down client + conn")
+	log.Info().Msg("daemon stop: tearing down client + conn")
 
 	if d.client != nil {
 		d.client.close()
@@ -263,16 +262,16 @@ func (d *flndDaemon) stop() {
 		d.conn.Close()
 	}
 
-	log.Info("daemon stop: cancelling context and requesting interceptor shutdown")
+	log.Info().Msg("daemon stop: cancelling context and requesting interceptor shutdown")
 	d.cancel()
 	d.interceptor.RequestShutdown()
 	select {
 	case <-d.interceptor.ShutdownChannel():
-		log.Info("daemon stop: interceptor shutdown drained")
+		log.Info().Msg("daemon stop: interceptor shutdown drained")
 	case <-time.After(5 * time.Second):
-		log.Warn("daemon stop: interceptor shutdown NOT drained within 5s — signal goroutine may be stuck")
+		log.Warn().Msg("daemon stop: interceptor shutdown NOT drained within 5s — signal goroutine may be stuck")
 	}
-	log.Info("daemon stop: complete")
+	log.Info().Msg("daemon stop: complete")
 }
 
 func tlsCreds(certPath string) (credentials.TransportCredentials, error) {
