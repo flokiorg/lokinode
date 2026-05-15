@@ -328,8 +328,9 @@ export const en = {
   'common.continue':   'Continue',
 
   // Header
-  'header.help':     'Help',
-  'header.settings': 'Settings',
+  'header.help':            'Help',
+  'header.settings':        'Settings',
+  'header.update_available': 'Update available: {{version}}',
 
   'node.errors.restart_failed': 'Restart failed',
   'node.errors.stop_failed':    'Stop failed',
@@ -689,8 +690,9 @@ export const ru: Translations = {
   'common.error':      'Ошибка',
   'common.continue':   'Продолжить',
 
-  'header.help':     'Помощь',
-  'header.settings': 'Настройки',
+  'header.help':            'Помощь',
+  'header.settings':        'Настройки',
+  'header.update_available': 'Доступно обновление: {{version}}',
 
   'node.errors.restart_failed': 'Ошибка перезапуска',
   'node.errors.stop_failed':    'Ошибка остановки',
@@ -1049,8 +1051,9 @@ export const zh: Translations = {
   'common.error':      '错误',
   'common.continue':   '继续',
 
-  'header.help':     '帮助',
-  'header.settings': '设置',
+  'header.help':            '帮助',
+  'header.settings':        '设置',
+  'header.update_available': '有可用更新：{{version}}',
 
   'node.errors.restart_failed': '重启失败',
   'node.errors.stop_failed':    '停止失败',
@@ -1409,8 +1412,9 @@ export const es: Translations = {
   'common.error':      'Error',
   'common.continue':   'Continuar',
 
-  'header.help':     'Ayuda',
-  'header.settings': 'Configuración',
+  'header.help':            'Ayuda',
+  'header.settings':        'Configuración',
+  'header.update_available': 'Actualización disponible: {{version}}',
 
   'node.errors.restart_failed': 'Error al reiniciar',
   'node.errors.stop_failed':    'Error al detener',
@@ -1766,8 +1770,9 @@ export const ja: Translations = {
   'common.processing': '処理中…',
   'common.error':      'エラー',
   'common.continue':   '続ける',
-  'header.help':     'ヘルプ',
-  'header.settings': '設定',
+  'header.help':            'ヘルプ',
+  'header.settings':        '設定',
+  'header.update_available': 'アップデート利用可能：{{version}}',
   'node.errors.restart_failed': '再起動に失敗しました',
   'node.errors.stop_failed':    '停止に失敗しました',
   'node.errors.start_timeout':  '起動がタイムアウトしました — ログを確認してください。',
@@ -2110,8 +2115,9 @@ export const ko: Translations = {
   'common.processing': '처리 중…',
   'common.error':      '오류',
   'common.continue':   '계속',
-  'header.help':     '도움말',
-  'header.settings': '설정',
+  'header.help':            '도움말',
+  'header.settings':        '설정',
+  'header.update_available': '업데이트 사용 가능: {{version}}',
   'node.errors.restart_failed': '재시작 실패',
   'node.errors.stop_failed':    '중지 실패',
   'node.errors.start_timeout':  '시작 시간이 초과되었습니다 — 로그를 확인하세요.',

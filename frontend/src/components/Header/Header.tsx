@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { BrowserOpenURL } from '../../../wailsjs/runtime';
 import { useTranslation } from '@/i18n/context';
 import { useInfo } from '@/hooks/useInfo';
+import { isNewerVersion } from '@/lib/version';
 import { LANGUAGES, Lang } from '@/i18n/translations';
 import logo from '../../assets/header/loki.png';
 
@@ -58,6 +59,7 @@ export const Header = () => {
   const isOnboarding = location.pathname === '/';
   const isSettingsPage = location.pathname === '/settings';
   const nodeActive = info?.state === 'ready' || info?.state === 'block' || info?.state === 'tx';
+  const needsUpdate = isNewerVersion(info?.latestVersion, info?.version);
 
   return (
     <div className="absolute top-0 left-0 right-0 z-[60] flex flex-row items-start px-[20px] h-[116px] pointer-events-none">
@@ -73,11 +75,21 @@ export const Header = () => {
         )}
         <LanguageDropdown />
         <button
-          className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
-          onClick={() => BrowserOpenURL('https://docs.flokicoin.org/wallets/lokinode')}
-          title={t('header.help')}
+          className="relative flex items-center justify-center transition-colors"
+          onClick={() => needsUpdate
+            ? BrowserOpenURL('https://docs.flokicoin.org/wallets/lokinode/')
+            : BrowserOpenURL('https://docs.flokicoin.org/wallets/lokinode')
+          }
+          title={needsUpdate ? t('header.update_available', { version: info?.latestVersion }) : t('header.help')}
         >
-          <HelpCircle size={16} strokeWidth={1.8} />
+          <HelpCircle
+            size={16}
+            strokeWidth={1.8}
+            className={needsUpdate ? 'text-[#DA9526]' : 'text-gray-400 hover:text-gray-200'}
+          />
+          {needsUpdate && (
+            <span className="absolute -top-[3px] -right-[3px] w-[6px] h-[6px] rounded-full bg-[#DA9526]" />
+          )}
         </button>
         {(isSettingsPage || nodeActive) && (
           <button

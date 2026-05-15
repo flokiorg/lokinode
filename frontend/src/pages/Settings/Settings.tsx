@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { BrowserOpenURL } from '../../../wailsjs/runtime';
 import { useTranslation } from '@/i18n/context';
 import { useInfo } from '@/hooks/useInfo';
+import { isNewerVersion } from '@/lib/version';
 import { Toaster } from '@/components/ui/toaster';
 import Security from '@/views/settings/Security';
 import Network from '@/views/settings/Network';
@@ -29,8 +30,8 @@ export default function Settings() {
     { key: 'about',    label: t('tab.about') },
   ];
 
-  const needsUpdate = info?.latestVersion && info?.version && info.latestVersion !== info.version;
-  const isLatest = !!info?.latestVersion && !!info?.version && info.latestVersion === info.version;
+  const needsUpdate = isNewerVersion(info?.latestVersion, info?.version);
+  const isLatest = !!info?.latestVersion && !!info?.version && !needsUpdate;
 
   return (
     <div className="flex flex-col h-full pt-[116px] overflow-hidden">
@@ -94,7 +95,7 @@ export default function Settings() {
 
                 {needsUpdate && (
                   <button
-                    onClick={() => BrowserOpenURL('https://github.com/flokiorg/lokinode/releases/latest')}
+                    onClick={() => BrowserOpenURL('https://docs.flokicoin.org/wallets/lokinode/')}
                     className="w-full py-[12px] rounded-xl bg-[#DA9526] text-black font-semibold font-label text-[13px] hover:bg-[#c8871f] transition-colors"
                   >
                     {t('about.download')}
