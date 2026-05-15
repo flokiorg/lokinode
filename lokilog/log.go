@@ -27,16 +27,17 @@ var (
 func Init() {
 	initOnce.Do(func() {
 		setupCrashLog()
-		root = buildRoot(os.Stderr, resolveLevel(os.Getenv("LOKI_LOG_LEVEL")))
+		root = buildRoot(resolveLevel(os.Getenv("LOKI_LOG_LEVEL")))
 	})
 }
 
-func buildRoot(w io.Writer, lvl zerolog.Level) zerolog.Logger {
-	cw := zerolog.ConsoleWriter{
-		Out:        w,
-		TimeFormat: time.RFC3339,
+func buildRoot(lvl zerolog.Level) zerolog.Logger {
+	var writers []io.Writer
+	writers = append(writers, zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	if f := openLokinodeLog(); f != nil {
+		writers = append(writers, zerolog.ConsoleWriter{Out: f, TimeFormat: time.RFC3339, NoColor: true})
 	}
-	return zerolog.New(cw).Level(lvl).With().Timestamp().Logger()
+	return zerolog.New(io.MultiWriter(writers...)).Level(lvl).With().Timestamp().Logger()
 }
 
 func resolveLevel(env string) zerolog.Level {
@@ -66,7 +67,7 @@ func parseLevel(s string) zerolog.Level {
 func For(component string) zerolog.Logger {
 	initOnce.Do(func() {
 		setupCrashLog()
-		root = buildRoot(os.Stderr, resolveLevel(os.Getenv("LOKI_LOG_LEVEL")))
+		root = buildRoot(resolveLevel(os.Getenv("LOKI_LOG_LEVEL")))
 	})
 	return root.With().Str("component", component).Logger()
 }

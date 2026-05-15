@@ -12,8 +12,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func appDataDir() string {
+	return filepath.Join(xdg.DataHome, "lokinode")
+}
+
 func setupCrashLog() {
-	workDir := filepath.Join(xdg.DataHome, "lokinode")
+	workDir := appDataDir()
 	if err := os.MkdirAll(workDir, 0755); err != nil {
 		return
 	}
@@ -30,4 +34,16 @@ func setupCrashLog() {
 	// Redirect stderr (FD 2) to the file.
 	// This ensures that even unrecovered panics from the Go runtime go to the file.
 	_ = unix.Dup2(int(f.Fd()), 2)
+}
+
+func openLokinodeLog() *os.File {
+	workDir := appDataDir()
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return nil
+	}
+	f, err := os.OpenFile(filepath.Join(workDir, "lokinode.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return nil
+	}
+	return f
 }
