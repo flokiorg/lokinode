@@ -60,7 +60,7 @@ func GetRecommendedFees(explorerHost string) (fastest, halfHour, economy int64, 
 
 // GetGithubLatestVersion fetches the latest release tag from GitHub.
 func GetGithubLatestVersion() (string, error) {
-	body, err := httpGet("https://api.github.com/repos/ohstr/lokinode/releases/latest")
+	body, err := httpGet("https://api.github.com/repos/flokiorg/lokinode/releases/latest")
 	if err != nil {
 		return "", err
 	}
