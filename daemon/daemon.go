@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/keepalive"
 )
 
 var (
@@ -105,14 +106,21 @@ func (d *flndDaemon) start() (c *Client, err error) {
 			grpc.MaxCallRecvMsgSize(maxGrpcRecvMsgSize),
 			grpc.MaxCallSendMsgSize(maxGrpcSendMsgSize),
 			grpc.UseCompressor(gzip.Name),
-		), grpc.WithConnectParams(grpc.ConnectParams{
+		),
+		grpc.WithConnectParams(grpc.ConnectParams{
 			MinConnectTimeout: 5 * time.Second,
 			Backoff: backoff.Config{
 				BaseDelay:  500 * time.Millisecond,
 				Multiplier: 1.5,
 				MaxDelay:   5 * time.Second,
 			},
-		}))
+		}),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                30 * time.Second,
+			Timeout:             5 * time.Second,
+			PermitWithoutStream: false,
+		}),
+	)
 	if err != nil {
 		return nil, err
 	}

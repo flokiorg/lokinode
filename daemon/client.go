@@ -239,6 +239,41 @@ func (c *Client) subscribeState() {
 }
 
 func (c *Client) subscribeBlocks() {
+	// Staleness watchdog: if no block arrives for recentHeaderThreshold, call
+	// IsSynced and re-enter sync polling so the UI reflects the real chain state.
+	// This catches the case where the host loses internet (FLND/neutrino loses
+	// peers) while the local gRPC connection stays alive.
+	var lastBlockMu sync.Mutex
+	lastBlockAt := time.Now()
+
+	go func() {
+		ticker := time.NewTicker(recentHeaderThreshold)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+				lastBlockMu.Lock()
+				elapsed := time.Since(lastBlockAt)
+				lastBlockMu.Unlock()
+				if elapsed < recentHeaderThreshold {
+					continue
+				}
+				synced, recentHeader, blockHeight, ts, err := c.IsSynced()
+				if err != nil || synced || recentHeader {
+					continue
+				}
+				log.Warn().
+					Dur("no_block_for", elapsed).
+					Uint32("block_height", blockHeight).
+					Msg("chain is stale; re-entering sync polling")
+				c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight, BestHeaderTimestamp: ts})
+				go c.pollSyncStatus()
+			}
+		}
+	}()
+
 	for {
 		stream, err := c.ntfClient.RegisterBlockEpochNtfn(c.withMacaroon(), &chainrpc.BlockEpoch{})
 		if err != nil {
@@ -262,6 +297,10 @@ func (c *Client) subscribeBlocks() {
 				log.Trace().Err(err).Msg("block subscription stream broke; reconnecting")
 				break
 			}
+
+			lastBlockMu.Lock()
+			lastBlockAt = time.Now()
+			lastBlockMu.Unlock()
 
 			c.invalidateTxCache()
 

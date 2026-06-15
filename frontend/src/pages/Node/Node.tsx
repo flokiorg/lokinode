@@ -22,6 +22,7 @@ import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { KineticSpinner } from '@/components/ui/KineticSpinner';
 import { formatFLC } from '@/lib/utils';
 import { useTransitionStore } from '@/components/TransitionOverlay/TransitionOverlay';
+import { InfoResponse, BalanceResponse, StateEvent } from '@/lib/types';
 
 const STATUS_READY     = 'ready';
 const STATUS_BLOCK     = 'block';
@@ -100,6 +101,9 @@ function Node() {
   // component mounts after a deliberate power-off. Only show the error screen
   // once we've actually observed the node running in this mount session.
   const hasSeenNonDownRef = useRef(false);
+  // Unix-second timestamp of the last received block/tx event; used to display
+  // "Last block: X ago" in the active overview and to hint at chain staleness.
+  const lastBlockAtRef = useRef<number>(0);
 
   // drag-to-dismiss for unlock sheet
   const [sheetDrag, setSheetDrag] = useState(0);
@@ -114,6 +118,10 @@ function Node() {
   // never flash the overview mid-restart and then jump straight to the unlock
   // sheet with no loading indicator.
   const isActive   = !isRestarting && (state === STATUS_READY || state === STATUS_BLOCK || state === STATUS_TX);
+
+  if (event?.state === STATUS_BLOCK || event?.state === STATUS_TX) {
+    lastBlockAtRef.current = Math.floor(Date.now() / 1000);
+  }
   const isLocked   = state === STATUS_LOCKED;
   const isNoWallet = state === STATUS_NO_WALLET;
   const isDown     = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying;
@@ -332,6 +340,13 @@ function Node() {
     }
   }, [showUnlock]);
 
+  // Tick every minute so the "Last block: X ago" display stays fresh.
+  const [, forceTickUpdate] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceTickUpdate(n => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── Phase config ──────────────────────────────────────────────────────────────
   // phaseKey is exhaustive: every observable state maps to a defined phase.
   // The fallback is 'syncing' rather than 'locked' so an empty/unknown state
@@ -443,7 +458,7 @@ function Node() {
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="h-full overflow-y-auto overscroll-y-contain"
             >
-              {tab === 'overview' && <OverviewTab info={info} balance={balance} onStop={handleStop} onLock={handleLock} isStopping={isStopping} isLocking={isLocking} />}
+              {tab === 'overview' && <OverviewTab info={info} balance={balance} onStop={handleStop} onLock={handleLock} isStopping={isStopping} isLocking={isLocking} lastBlockAt={lastBlockAtRef.current} />}
               {tab === 'history'  && <Transactions />}
               {tab === 'receive'  && <Receive />}
               {tab === 'send'     && <Send />}
@@ -636,6 +651,18 @@ function Node() {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function relativeTime(s: number, t: (k: any, opts?: any) => string): string {
+  if (!s) return '';
+  const d = Math.floor(Date.now() / 1000) - s;
+  if (d < 60)       return t('time.seconds_ago', { n: d });
+  if (d < 3600)     return t('time.minutes_ago', { n: Math.floor(d / 60) });
+  if (d < 86400)    return t('time.hours_ago',   { n: Math.floor(d / 3600) });
+  if (d < 2592000)  return t('time.days_ago',    { n: Math.floor(d / 86400) });
+  if (d < 31536000) return t('time.months_ago',  { n: Math.floor(d / 2592000) });
+  return t('time.years_ago', { n: Math.floor(d / 31536000) });
+}
+
 // ── Sync progress ──────────────────────────────────────────────────────────────
 function SyncProgress({ info, event }: { info: any; event: import('@/lib/types').StateEvent | null }) {
   const { t } = useTranslation();
@@ -657,17 +684,6 @@ function SyncProgress({ info, event }: { info: any; event: import('@/lib/types')
   const skipTransition = prevPctRef.current < 0 || pct < prevPctRef.current - 2;
   useEffect(() => { prevPctRef.current = pct; });
 
-  function relativeTime(s: number): string {
-    if (!s) return '';
-    const d = Math.floor(Date.now() / 1000) - s;
-    if (d < 60)       return t('time.seconds_ago', { n: d });
-    if (d < 3600)     return t('time.minutes_ago', { n: Math.floor(d / 60) });
-    if (d < 86400)    return t('time.hours_ago',   { n: Math.floor(d / 3600) });
-    if (d < 2592000)  return t('time.days_ago',    { n: Math.floor(d / 86400) });
-    if (d < 31536000) return t('time.months_ago',  { n: Math.floor(d / 2592000) });
-    return t('time.years_ago', { n: Math.floor(d / 31536000) });
-  }
-
   return (
     <div className="flex flex-col items-center gap-[8px] mt-[10px]">
       {tip > 0 && (
@@ -687,9 +703,9 @@ function SyncProgress({ info, event }: { info: any; event: import('@/lib/types')
           </span>
         </div>
       )}
-      {relativeTime(ts) && (
+      {relativeTime(ts, t) && (
         <span className="text-gray-400 text-[10px] font-mono">
-          {t('overview.last_block', { time: relativeTime(ts) })}
+          {t('overview.last_block', { time: relativeTime(ts, t) })}
         </span>
       )}
     </div>
@@ -697,10 +713,11 @@ function SyncProgress({ info, event }: { info: any; event: import('@/lib/types')
 }
 
 // ── Overview tab ───────────────────────────────────────────────────────────────
-function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking }: {
+function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking, lastBlockAt }: {
   info: any; balance: any;
   onStop: () => void; onLock: () => void;
   isStopping: boolean; isLocking: boolean;
+  lastBlockAt: number;
 }) {
   const { t } = useTranslation();
   const isSynced = info?.syncedToChain === true;
@@ -743,6 +760,16 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking }: {
             ? <span className="text-white text-[12px] font-mono">{info.blockHeight.toLocaleString()}</span>
             : <Skeleton className="h-[9px] w-[60px]" />}
         </InfoRow>
+        {lastBlockAt > 0 && (() => {
+          const isStale = (Math.floor(Date.now() / 1000) - lastBlockAt) > 15 * 60;
+          return (
+            <InfoRow label={t('overview.last_block_label')}>
+              <span className={`text-[12px] font-mono ${isStale ? 'text-amber-400' : 'text-white'}`}>
+                {relativeTime(lastBlockAt, t)}
+              </span>
+            </InfoRow>
+          );
+        })()}
         <InfoRow label={t('overview.pubkey')} last>
           {info?.nodePubkey
             ? <div className="flex items-center w-[160px]">
