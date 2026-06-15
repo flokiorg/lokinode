@@ -664,7 +664,7 @@ function relativeTime(s: number, t: (k: any, opts?: any) => string): string {
 }
 
 // ── Sync progress ──────────────────────────────────────────────────────────────
-function SyncProgress({ info, event }: { info: any; event: import('@/lib/types').StateEvent | null }) {
+function SyncProgress({ info, event }: { info: InfoResponse | null; event: StateEvent | null }) {
   const { t } = useTranslation();
 
   // mempoolHeight and blockHeight arrive on every SSE event
@@ -714,7 +714,7 @@ function SyncProgress({ info, event }: { info: any; event: import('@/lib/types')
 
 // ── Overview tab ───────────────────────────────────────────────────────────────
 function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking, lastBlockAt }: {
-  info: any; balance: any;
+  info: InfoResponse | null; balance: BalanceResponse | null;
   onStop: () => void; onLock: () => void;
   isStopping: boolean; isLocking: boolean;
   lastBlockAt: number;
