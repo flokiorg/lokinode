@@ -119,9 +119,6 @@ function Node() {
   // sheet with no loading indicator.
   const isActive   = !isRestarting && (state === STATUS_READY || state === STATUS_BLOCK || state === STATUS_TX);
 
-  if (event?.state === STATUS_BLOCK || event?.state === STATUS_TX) {
-    lastBlockAtRef.current = Math.floor(Date.now() / 1000);
-  }
   const isLocked   = state === STATUS_LOCKED;
   const isNoWallet = state === STATUS_NO_WALLET;
   const isDown     = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying;
@@ -246,6 +243,12 @@ function Node() {
   }, [event]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (event?.state === STATUS_BLOCK || event?.state === STATUS_TX) {
+      lastBlockAtRef.current = Math.floor(Date.now() / 1000);
+    }
+  }, [event]);
+
+  useEffect(() => {
     if (isLocking && isLocked && nodeRunning) {
       setIsLocking(false);
     }
@@ -340,10 +343,10 @@ function Node() {
     }
   }, [showUnlock]);
 
-  // Tick every minute so the "Last block: X ago" display stays fresh.
+  // Tick every second so the "Last block" display counts up accurately.
   const [, forceTickUpdate] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => forceTickUpdate(n => n + 1), 60_000);
+    const id = setInterval(() => forceTickUpdate(n => n + 1), 1_000);
     return () => clearInterval(id);
   }, []);
 
@@ -458,7 +461,7 @@ function Node() {
               transition={{ duration: 0.2, ease: 'easeOut' }}
               className="h-full overflow-y-auto overscroll-y-contain"
             >
-              {tab === 'overview' && <OverviewTab info={info} balance={balance} onStop={handleStop} onLock={handleLock} isStopping={isStopping} isLocking={isLocking} lastBlockAt={lastBlockAtRef.current} />}
+              {tab === 'overview' && <OverviewTab info={info} balance={balance ?? null} onStop={handleStop} onLock={handleLock} isStopping={isStopping} isLocking={isLocking} lastBlockAt={lastBlockAtRef.current} />}
               {tab === 'history'  && <Transactions />}
               {tab === 'receive'  && <Receive />}
               {tab === 'send'     && <Send />}
@@ -761,12 +764,22 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking, las
             : <Skeleton className="h-[9px] w-[60px]" />}
         </InfoRow>
         {lastBlockAt > 0 && (() => {
-          const isStale = (Math.floor(Date.now() / 1000) - lastBlockAt) > 15 * 60;
+          const secsAgo = Math.floor(Date.now() / 1000) - lastBlockAt;
+          const isRecent = secsAgo < 30;
+          const isStale  = secsAgo > 15 * 60;
           return (
             <InfoRow label={t('overview.last_block_label')}>
-              <span className={`text-[12px] font-mono ${isStale ? 'text-amber-400' : 'text-white'}`}>
-                {relativeTime(lastBlockAt, t)}
-              </span>
+              <div className="flex items-center gap-[6px]">
+                {isRecent && (
+                  <span className="relative flex h-[7px] w-[7px]">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#DA9526] opacity-60" />
+                    <span className="relative inline-flex rounded-full h-[7px] w-[7px] bg-[#DA9526]" />
+                  </span>
+                )}
+                <span className={`text-[12px] font-mono ${isStale ? 'text-amber-400' : 'text-white'}`}>
+                  {relativeTime(lastBlockAt, t)}
+                </span>
+              </div>
             </InfoRow>
           );
         })()}
