@@ -82,6 +82,7 @@ type Client struct {
 	syncPollingDone   chan struct{}
 	isSynced          bool
 	syncedHeight      uint32
+	bestHeaderTs      int64
 	mu                sync.Mutex
 
 	closing bool
@@ -319,11 +320,15 @@ func (c *Client) subscribeBlocks() {
 			} else {
 				log.Trace().Uint32("height", r.Height).Msg("block received")
 			}
+			c.mu.Lock()
+			bestTs := c.bestHeaderTs
+			c.mu.Unlock()
 			c.submitHealth(Update{
-				State:        state,
-				SyncedHeight: syncedHeight,
-				BlockHeight:  r.Height,
-				BlockHash:    hex.EncodeToString(r.Hash),
+				State:               state,
+				SyncedHeight:        syncedHeight,
+				BlockHeight:         r.Height,
+				BlockHash:           hex.EncodeToString(r.Hash),
+				BestHeaderTimestamp: bestTs,
 			})
 		}
 
@@ -895,6 +900,9 @@ func (c *Client) IsSynced() (bool, bool, uint32, int64, error) {
 	c.mu.Lock()
 	c.isSynced = synced
 	c.syncedHeight = blockHeight
+	if bestHeaderTs > 0 {
+		c.bestHeaderTs = bestHeaderTs
+	}
 	c.mu.Unlock()
 	return synced, recentHeader, blockHeight, bestHeaderTs, err
 }
