@@ -85,6 +85,7 @@ function Node() {
   const [isStopping, setIsStopping] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
   const [startTime] = useState(() => Math.floor(Date.now() / 1000));
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +97,7 @@ function Node() {
   // guard in handleRestart() relies on React having re-rendered the optimistic
   // 'starting' value between clicks, which isn't guaranteed under load.
   const restartInFlightRef = useRef(false);
+  const recoveryInFlightRef = useRef(false);
   // Prevents the stale 'down' SSE event (stored in the singleton
   // EventStreamProvider) from showing "Node Error" immediately when the
   // component mounts after a deliberate power-off. Only show the error screen
@@ -119,9 +121,10 @@ function Node() {
   // sheet with no loading indicator.
   const isActive   = !isRestarting && (state === STATUS_READY || state === STATUS_BLOCK || state === STATUS_TX);
 
-  const isLocked   = state === STATUS_LOCKED;
-  const isNoWallet = state === STATUS_NO_WALLET;
-  const isDown     = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying;
+  const isLocked           = state === STATUS_LOCKED;
+  const isNoWallet         = state === STATUS_NO_WALLET;
+  const neutrinoCorrupted  = !!(event?.neutrinoCorrupted ?? info?.neutrinoCorrupted);
+  const isDown             = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying && !isRecovering;
 
   // ── Unlock ────────────────────────────────────────────────────────────────────
   async function handleUnlock() {
@@ -234,19 +237,50 @@ function Node() {
     }
   }
 
+  // ── Recover (neutrino header corruption)
+  async function handleRecover() {
+    if (state !== STATUS_DOWN || recoveryInFlightRef.current) return;
+    recoveryInFlightRef.current = true;
+    setIsRecovering(true);
+    try {
+      await post('/api/node/recover', {});
+    } catch (err) {
+      setIsRecovering(false);
+      mutateInfo();
+      if (err instanceof ApiError && err.status === 429) {
+        toast({ variant: 'destructive', title: t('node.errors.rate_limited') });
+      } else {
+        toast({ variant: 'destructive', title: t('node.errors.recover_failed'), description: String(err) });
+      }
+    } finally {
+      recoveryInFlightRef.current = false;
+    }
+  }
+
   useEffect(() => {
     if (event === null) return;
     if (event.state !== STATUS_DOWN) hasSeenNonDownRef.current = true;
     // Any event from the backend means the daemon responded — clear the
-    // retrying spinner regardless of whether it succeeded or failed again.
+    // retrying/recovering spinner regardless of whether it succeeded or failed again.
     if (isRetrying) setIsRetrying(false);
+    if (isRecovering) setIsRecovering(false);
   }, [event]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (event?.state === STATUS_BLOCK || event?.state === STATUS_TX) {
-      lastBlockAtRef.current = Math.floor(Date.now() / 1000);
+      lastBlockAtRef.current = event.bestHeaderTimestamp
+        ? event.bestHeaderTimestamp
+        : Math.floor(Date.now() / 1000);
     }
   }, [event]);
+
+  // Seed lastBlockAtRef from the REST response so the "Last block" display is
+  // accurate immediately on mount/reconnect before the first SSE block event.
+  useEffect(() => {
+    if (info?.bestHeaderTimestamp && info.bestHeaderTimestamp > lastBlockAtRef.current) {
+      lastBlockAtRef.current = info.bestHeaderTimestamp;
+    }
+  }, [info?.bestHeaderTimestamp]);
 
   useEffect(() => {
     if (isLocking && isLocked && nodeRunning) {
@@ -369,7 +403,11 @@ function Node() {
   // in lock-step (one source of truth).
   const syncing    = phaseKey === 'syncing';
   const bootStates = new Set(['init', 'starting', 'none', '']);
-  const syncingLabel = (bootStates.has(state) || isRetrying) ? t('node.status.starting') : t('node.status.syncing');
+  const syncingLabel = isRecovering
+    ? t('node.status.recovering')
+    : (bootStates.has(state) || isRetrying)
+      ? t('node.status.starting')
+      : t('node.status.syncing');
   const syncingSub: Record<string, string> = {
     init: t('node.sync.init'), none: t('node.sync.none'), unlocked: t('node.sync.unlocked'),
     syncing: t('node.sync.syncing'), scanning: t('node.sync.scanning'), tx: t('node.sync.tx'),
@@ -382,7 +420,7 @@ function Node() {
     syncing:    { label: syncingLabel,                   sub: syncingSub[state] ?? t('node.sync.default'), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     restarting: { label: t('node.status.restarting'),   sub: t('node.status.sub.restarting'),  glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     active:     { label: t('node.status.active'),        sub: formatUptime(startTime),          glowColor: 'rgba(218,149,38,0.28)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
-    down:       { label: t('node.status.error'),         sub: t('node.status.sub.retrying'),   glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
+    down:       { label: t('node.status.error'),         sub: neutrinoCorrupted ? t('node.status.sub.recover') : t('node.status.sub.retrying'),   glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
     noWallet:   { label: t('node.status.no_wallet'),     sub: t('node.status.sub.no_wallet'),  glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
   }[phaseKey];
 
@@ -513,7 +551,7 @@ function Node() {
                 onClick={() => {
                   if (isLoading) return;
                   if (isLocked) setShowUnlock(true);
-                  else if (isDown) handleRestart();
+                  else if (isDown) neutrinoCorrupted ? handleRecover() : handleRestart();
                   else if (isNoWallet) handleGoHome();
                 }}
                 disabled={isLoading}
@@ -548,7 +586,10 @@ function Node() {
               <div className="flex flex-col items-center gap-[4px] mt-[12px]">
                 {(event?.portConflict ?? info?.portConflict) && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.port_conflict')}</p>}
                 {(event?.anotherInstance ?? info?.anotherInstance) && <p className="text-red-400/80 text-[11px] font-body text-center px-[16px]">{t('node.errors.another_instance')}</p>}
-                {(event?.error ?? info?.error) && !(event?.portConflict ?? info?.portConflict) && !(event?.anotherInstance ?? info?.anotherInstance) && (
+                {neutrinoCorrupted && (
+                  <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{t('node.errors.neutrino_corrupted')}</p>
+                )}
+                {(event?.error ?? info?.error) && !neutrinoCorrupted && !(event?.portConflict ?? info?.portConflict) && !(event?.anotherInstance ?? info?.anotherInstance) && (
                   <p className="text-red-400/80 text-[11px] font-body text-center px-[16px] max-w-[280px]">{friendlyDaemonError((event?.error ?? info?.error)!, k => t(k as Parameters<typeof t>[0]))}</p>
                 )}
               </div>

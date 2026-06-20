@@ -17,6 +17,7 @@ export interface InfoResponse {
   nodeRunning: boolean;
   anotherInstance?: boolean;
   portConflict?: boolean;
+  neutrinoCorrupted?: boolean;
   peerAddress: string;
   rpcAddress: string;
   macaroonHex: string;
@@ -103,6 +104,7 @@ export interface StateEvent {
   error?: string;
   portConflict?: boolean;
   anotherInstance?: boolean;
+  neutrinoCorrupted?: boolean;
   blockHeight?: number;
   blockHash?: string;
   syncedHeight?: number;

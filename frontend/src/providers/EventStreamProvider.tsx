@@ -40,6 +40,7 @@ export function EventStreamProvider({ children }: { children: React.ReactNode })
 
         if (ev.state === 'block' && !ev.syncedHeight) {
           mutate('/api/balance');
+          mutate('/api/info');
         }
         if (ev.state === 'tx') {
           mutate('/api/balance');
