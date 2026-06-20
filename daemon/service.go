@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,7 @@ type Update struct {
 	Err                       error
 	Transaction               *lnrpc.Transaction
 	PortConflict              bool
+	NeutrinoCorrupted         bool
 	BlockHeight, SyncedHeight uint32
 	BlockHash                 string
 	BestHeaderTimestamp       int64
@@ -304,8 +306,16 @@ func (s *Service) acquireSignalInterceptor() (signal.Interceptor, error) {
 // failStartup publishes a StatusDown event for a startup-phase error and
 // returns the error so runOnce can hand it to the retry-gate.
 func (s *Service) failStartup(stage string, err error) error {
-	log.Error().Str("stage", stage).Err(err).Bool("port_conflict", isPortConflict(err)).Msg("daemon startup failed")
-	s.notifySubscribers(&Update{State: StatusDown, Err: err, PortConflict: isPortConflict(err)})
+	log.Error().Str("stage", stage).Err(err).
+		Bool("port_conflict", isPortConflict(err)).
+		Bool("neutrino_corrupted", isEOFError(err)).
+		Msg("daemon startup failed")
+	s.notifySubscribers(&Update{
+		State:             StatusDown,
+		Err:               err,
+		PortConflict:      isPortConflict(err),
+		NeutrinoCorrupted: isEOFError(err),
+	})
 	return err
 }
 
@@ -699,6 +709,36 @@ func (s *Service) TriggerRescan() error {
 	s.configMu.Lock()
 	s.flndConfig.ResetWalletTransactions = true
 	s.configMu.Unlock()
+	return s.Restart()
+}
+
+// RecoverNeutrino stops the running daemon, purges the corrupted neutrino
+// header and database files, then restarts the daemon so they are re-synced
+// from the network. Retries the purge up to 3 times in case the OS has not
+// fully released the files yet.
+func (s *Service) RecoverNeutrino() error {
+	s.configMu.Lock()
+	nodeDir := s.flndConfig.LndDir
+	s.configMu.Unlock()
+
+	log.Info().Str("nodeDir", nodeDir).Msg("neutrino recovery: stopping daemon")
+	s.stopDaemon()
+
+	const maxRetries = 3
+	var purgeErr error
+	for i := range maxRetries {
+		purgeErr = PurgeNeutrinoCache(nodeDir)
+		if purgeErr == nil {
+			break
+		}
+		log.Warn().Err(purgeErr).Int("attempt", i+1).Msg("neutrino cache purge failed, retrying")
+		time.Sleep(5 * time.Second)
+	}
+	if purgeErr != nil {
+		return fmt.Errorf("neutrino cache purge failed: %w", purgeErr)
+	}
+
+	log.Info().Msg("neutrino recovery: restarting daemon")
 	return s.Restart()
 }
 
