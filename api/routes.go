@@ -11,6 +11,7 @@ func registerRoutes(g *echo.Group, app App) {
 	g.POST("/node/start", handleNodeStart(app))
 	g.POST("/node/stop", handleNodeStop(app))
 	g.POST("/node/restart", handleNodeRestart(app))
+	g.POST("/node/recover", handleNodeRecover(app))
 	g.POST("/node/verify-config", handleVerifyConfig(app))
 	g.GET("/node/config", handleGetNodeConfig(app))
 	g.GET("/node/last", handleGetLastNode(app))

@@ -18,8 +18,9 @@ type InfoResponse struct {
 	State           string `json:"state"`
 	Error           string `json:"error,omitempty"`
 	NodeRunning     bool   `json:"nodeRunning"`
-	AnotherInstance bool   `json:"anotherInstance,omitempty"`
-	PortConflict    bool   `json:"portConflict,omitempty"`
+	AnotherInstance   bool   `json:"anotherInstance,omitempty"`
+	PortConflict      bool   `json:"portConflict,omitempty"`
+	NeutrinoCorrupted bool   `json:"neutrinoCorrupted,omitempty"`
 
 	// Network details
 	PeerAddress   string `json:"peerAddress"`
@@ -243,6 +244,7 @@ type StateEvent struct {
 	Error               string           `json:"error,omitempty"`
 	PortConflict        bool             `json:"portConflict,omitempty"`
 	AnotherInstance     bool             `json:"anotherInstance,omitempty"`
+	NeutrinoCorrupted   bool             `json:"neutrinoCorrupted,omitempty"`
 	BlockHeight         uint32           `json:"blockHeight,omitempty"`
 	BlockHash           string           `json:"blockHash,omitempty"`
 	SyncedHeight        uint32           `json:"syncedHeight,omitempty"`

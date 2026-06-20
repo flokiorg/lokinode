@@ -55,6 +55,21 @@ func handleNodeRestart(app App) echo.HandlerFunc {
 	}
 }
 
+func handleNodeRecover(app App) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		if !lifecycleLimiter.Allow() {
+			log.Warn().Msg("node recover rate-limited")
+			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
+		}
+		log.Info().Msg("neutrino recovery requested")
+		if err := app.RecoverNeutrino(); err != nil {
+			log.Error().Err(err).Msg("neutrino recovery failed")
+			return apiErr(c, http.StatusInternalServerError, err)
+		}
+		return c.NoContent(http.StatusNoContent)
+	}
+}
+
 func handleDefaultNodeDir(app App) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"dir": app.GetDefaultNodeDir()})

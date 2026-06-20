@@ -97,6 +97,7 @@ func stateEventFromUpdate(u *daemon.Update) StateEvent {
 		State:               string(u.State),
 		NodeRunning:         true,
 		PortConflict:        u.PortConflict,
+		NeutrinoCorrupted:   u.NeutrinoCorrupted,
 		BlockHeight:         u.BlockHeight,
 		BlockHash:           u.BlockHash,
 		SyncedHeight:        u.SyncedHeight,

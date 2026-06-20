@@ -23,6 +23,7 @@ type App interface {
 	RunNode() error
 	StopNode()
 	RestartNode() error
+	RecoverNeutrino() error
 	VerifyConfig(ucfg daemon.UserNodeConfig) error
 	GetNodeConfig(dir string) (daemon.UserNodeConfig, error)
 	GetDefaultNodeDir() string

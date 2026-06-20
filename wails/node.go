@@ -213,3 +213,19 @@ func (a *App) RestartNode() error {
 	log.Info().Msg("RestartNode: bouncing daemon")
 	return svc.RestartWithConfig(cfg)
 }
+
+// RecoverNeutrino stops the daemon, purges corrupted neutrino header files,
+// then restarts the daemon so they are re-downloaded from the network.
+func (a *App) RecoverNeutrino() error {
+	a.nodeServiceMu.Lock()
+	svc := a.nodeService
+	a.nodeServiceMu.Unlock()
+
+	if svc == nil {
+		log.Warn().Msg("RecoverNeutrino called but no service attached")
+		return daemon.ErrDaemonNotRunning
+	}
+
+	log.Info().Msg("RecoverNeutrino: starting neutrino cache recovery")
+	return svc.RecoverNeutrino()
+}

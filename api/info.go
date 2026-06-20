@@ -98,6 +98,7 @@ func handleInfo(app App) echo.HandlerFunc {
 				resp.Error = ev.Err.Error()
 			}
 			resp.PortConflict = ev.PortConflict
+			resp.NeutrinoCorrupted = ev.NeutrinoCorrupted
 		}
 
 		// Defensive fallback: when the subscription is still reporting "starting"
