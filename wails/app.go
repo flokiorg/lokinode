@@ -124,7 +124,7 @@ func (a *App) Shutdown(_ context.Context) {
 	svc := a.nodeService
 	a.nodeServiceMu.Unlock()
 	if svc != nil {
-		svc.Stop()
+		go svc.Stop() // best-effort: daemon receives graceful shutdown signal before OS exit
 	}
 	log.Info().Msg("app shutdown complete")
 }
