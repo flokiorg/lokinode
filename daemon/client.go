@@ -45,6 +45,7 @@ const (
 	transactionPageSize     = 200
 	transactionsCacheTTL    = 5 * time.Minute
 	recentHeaderThreshold   = 5 * time.Minute
+	syncStuckTimeout        = 3 * time.Minute
 	defaultRecoveryWindow   = 2500
 
 	localhostIP           = "127.0.0.1"
@@ -776,6 +777,8 @@ func (c *Client) pollSyncStatus() {
 		close(doneCh)
 	}()
 
+	tracker := newSyncProgressTracker(syncStuckTimeout)
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -793,10 +796,54 @@ func (c *Client) pollSyncStatus() {
 				c.submitHealth(Update{State: StatusReady, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 				return
 			}
+
+			if tracker.record(bestTs) {
+				log.Warn().
+					Int64("best_header_ts", bestTs).
+					Dur("stuck_for", tracker.stuckFor()).
+					Msg("sync progress stalled; restarting daemon")
+				c.submitHealth(Update{State: StatusDown}) // nil Err → auto-restart, not crash/retry path
+				return
+			}
+
 			log.Trace().Uint32("block_height", blockHeight).Time("best_header", time.Unix(bestTs, 0)).Msg("sync progress")
 			c.submitHealth(Update{State: StatusSyncing, BlockHeight: blockHeight, BestHeaderTimestamp: bestTs})
 		}
 	}
+}
+
+// syncProgressTracker records bestHeaderTimestamp values across poll ticks and
+// reports when no progress has been observed for longer than timeout. Anchoring
+// starts on the first call to record so the timeout is measured from the first
+// observed stuck state, not from when the tracker was created.
+type syncProgressTracker struct {
+	timeout time.Duration
+	lastTs  int64
+	lastAt  time.Time
+}
+
+func newSyncProgressTracker(timeout time.Duration) *syncProgressTracker {
+	return &syncProgressTracker{timeout: timeout}
+}
+
+// record updates the tracker with the latest bestTs and returns true when the
+// timestamp has been stuck past the timeout.
+func (t *syncProgressTracker) record(bestTs int64) bool {
+	if bestTs != t.lastTs {
+		t.lastTs = bestTs
+		t.lastAt = time.Now()
+	} else if t.lastAt.IsZero() {
+		t.lastAt = time.Now()
+	}
+	return !t.lastAt.IsZero() && time.Since(t.lastAt) > t.timeout
+}
+
+// stuckFor returns how long the tracker has been in the stuck state.
+func (t *syncProgressTracker) stuckFor() time.Duration {
+	if t.lastAt.IsZero() {
+		return 0
+	}
+	return time.Since(t.lastAt)
 }
 
 // --- lifecycle helpers ---
