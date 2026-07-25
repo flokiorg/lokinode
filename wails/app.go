@@ -95,7 +95,7 @@ func (a *App) Startup(ctx context.Context) {
 				if err != nil {
 					return // listener closed on Shutdown
 				}
-				conn.Close()
+				_ = conn.Close()
 				lokitray.ShowInDock()
 				runtime.WindowShow(ctx)
 			}
@@ -118,7 +118,7 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(_ context.Context) {
 	log.Info().Msg("app shutdown initiated")
 	if a.singletonLn != nil {
-		a.singletonLn.Close()
+		_ = a.singletonLn.Close()
 	}
 	a.nodeServiceMu.Lock()
 	svc := a.nodeService
@@ -145,7 +145,7 @@ func TrySignalRunningInstance() bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
 

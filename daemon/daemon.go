@@ -267,7 +267,7 @@ func (d *flndDaemon) stop() {
 		d.client.close()
 	}
 	if d.conn != nil {
-		d.conn.Close()
+		_ = d.conn.Close()
 	}
 
 	log.Info().Msg("daemon stop: cancelling context and requesting interceptor shutdown")

@@ -1250,7 +1250,7 @@ func (c *Client) resolveAddresses() (rpc, peer string) {
 		return "", ""
 	}
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	conn.Close()
+	_ = conn.Close()
 	ip := localAddr.IP.String()
 
 	rpcPort := strconv.Itoa(defaultRPCPort)

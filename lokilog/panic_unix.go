@@ -29,7 +29,7 @@ func setupCrashLog() {
 	}
 
 	// Write a separator and startup timestamp
-	fmt.Fprintf(f, "\n--- LOKINODE STARTUP: %s ---\n", time.Now().Format(time.RFC3339))
+	_, _ = fmt.Fprintf(f, "\n--- LOKINODE STARTUP: %s ---\n", time.Now().Format(time.RFC3339))
 
 	// Redirect stderr (FD 2) to the file.
 	// This ensures that even unrecovered panics from the Go runtime go to the file.

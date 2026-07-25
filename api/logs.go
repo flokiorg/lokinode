@@ -34,7 +34,7 @@ func handleLogs(app App) echo.HandlerFunc {
 		if err != nil {
 			return c.JSON(http.StatusOK, map[string][]string{"lines": {}})
 		}
-		defer f.Close()
+		defer f.Close() //nolint:errcheck
 
 		lines := readBackfill(f, maxLines)
 		return c.JSON(http.StatusOK, map[string][]string{"lines": lines})
@@ -85,7 +85,7 @@ func handleLogsStream(app App) echo.HandlerFunc {
 
 		defer func() {
 			if f != nil {
-				f.Close()
+				_ = f.Close()
 			}
 		}()
 
@@ -128,7 +128,7 @@ func handleLogsStream(app App) echo.HandlerFunc {
 					}
 
 					if _, err := f.Seek(0, io.SeekEnd); err != nil {
-						f.Close()
+						_ = f.Close()
 						f = nil
 						continue
 					}
