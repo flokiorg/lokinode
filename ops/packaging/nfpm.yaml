@@ -17,6 +17,7 @@ contents:
   - src: "ops/bin/${BINARY_NAME}"
     dst: "/usr/bin/lokinode"
     type: "tree"
+    expand: true
     file_info:
       mode: 0755
 
