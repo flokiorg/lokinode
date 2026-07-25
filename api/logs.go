@@ -30,7 +30,7 @@ func handleLogs(app App) echo.HandlerFunc {
 			}
 		}
 
-		f, err := os.Open(logPath)
+		f, err := os.Open(logPath) //nolint:gosec // logPath comes from findLogFile(app.GetLogDir()), not request input
 		if err != nil {
 			return c.JSON(http.StatusOK, map[string][]string{"lines": {}})
 		}
@@ -111,7 +111,7 @@ func handleLogsStream(app App) echo.HandlerFunc {
 					if err != nil {
 						continue
 					}
-					f, err = os.Open(logPath)
+					f, err = os.Open(logPath) //nolint:gosec // logPath comes from findLogFile(app.GetLogDir()), not request input
 					if err != nil {
 						continue
 					}

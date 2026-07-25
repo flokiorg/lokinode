@@ -6,6 +6,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"time"
 
 	lokiapi "github.com/flokiorg/lokinode/api"
 	lokiapp "github.com/flokiorg/lokinode/wails"
@@ -24,7 +25,14 @@ func StartServer(app *lokiapp.App) {
 		return
 	}
 	apiPort = ln.Addr().(*net.TCPAddr).Port
-	go http.Serve(ln, lokiapi.NewHandler(app)) //nolint:errcheck
+	srv := &http.Server{
+		Handler: lokiapi.NewHandler(app),
+		// No ReadTimeout/WriteTimeout: /api/logs/stream is a long-lived SSE
+		// connection that must not be capped. ReadHeaderTimeout alone still
+		// guards against slow-header connections.
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	go srv.Serve(ln) //nolint:errcheck
 }
 
 // GetPort returns the loopback port the API server is listening on.

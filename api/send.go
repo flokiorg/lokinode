@@ -24,8 +24,8 @@ func handleSend(app App) echo.HandlerFunc {
 		if err := c.Bind(&req); err != nil {
 			return apiErr(c, http.StatusBadRequest, err)
 		}
-		if req.Address == "" || req.Amount <= 0 {
-			return apiErr(c, http.StatusBadRequest, errors.New("address and positive amount are required"))
+		if req.Address == "" || req.Amount <= 0 || req.LokiPerVbyte <= 0 {
+			return apiErr(c, http.StatusBadRequest, errors.New("address, positive amount, and positive fee rate are required"))
 		}
 		log.Info().Int64("amount_loki", req.Amount).Int64("fee_rate", req.LokiPerVbyte).Msg("send requested")
 		txid, err := svc.SendCoins(req.Address, req.Amount, req.LokiPerVbyte)
@@ -74,6 +74,9 @@ func handleMaxSendable(app App) echo.HandlerFunc {
 		var req MaxSendableRequest
 		if err := c.Bind(&req); err != nil {
 			return apiErr(c, http.StatusBadRequest, err)
+		}
+		if req.Address == "" || req.LokiPerVbyte <= 0 {
+			return apiErr(c, http.StatusBadRequest, errors.New("address and positive fee rate are required"))
 		}
 		amount, fee, err := svc.MaxSendable(req.Address, req.LokiPerVbyte)
 		if err != nil {
