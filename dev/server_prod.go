@@ -3,6 +3,7 @@
 package dev
 
 import (
+	"context"
 	"net"
 	"net/http"
 
@@ -17,7 +18,8 @@ var apiPort int
 // necessary because Wails' AssetServer uses WKURLSchemeHandler on macOS,
 // which cannot stream long-lived SSE responses.
 func StartServer(app *lokiapp.App) {
-	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp4", "127.0.0.1:0")
 	if err != nil {
 		return
 	}

@@ -81,7 +81,8 @@ func (a *App) GetAPIServerPort() int { return a.apiServerPort }
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	// Try to acquire the singleton lock. On failure another instance is running.
-	ln, err := net.Listen("tcp4", "127.0.0.1:"+instanceLockPort)
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp4", "127.0.0.1:"+instanceLockPort)
 	if err == nil {
 		log.Info().Msg("singleton lock acquired")
 		a.singletonLn = ln
@@ -137,7 +138,10 @@ func (a *App) IsAnotherInstanceRunning() bool {
 // is listening it will receive the connection and show its window. Returns true
 // when another instance was found, so the caller can exit immediately.
 func TrySignalRunningInstance() bool {
-	conn, err := net.DialTimeout("tcp4", "127.0.0.1:"+instanceLockPort, 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp4", "127.0.0.1:"+instanceLockPort)
 	if err != nil {
 		return false
 	}

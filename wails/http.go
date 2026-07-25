@@ -1,6 +1,7 @@
 package wails
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -20,7 +21,11 @@ var httpClient = http.Client{
 const maxResponseBytes = 1 * 1024 * 1024 // 1 MB
 
 func httpGet(url string) ([]byte, error) {
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
