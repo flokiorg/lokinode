@@ -170,13 +170,15 @@ func pngToPixmaps(data []byte) []pixmap {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bv, a := img.At(x, y).RGBA()
 			i := ((y-b.Min.Y)*w + (x-b.Min.X)) * 4
-			argb[i] = byte(a >> 8)
-			argb[i+1] = byte(r >> 8)
-			argb[i+2] = byte(g >> 8)
-			argb[i+3] = byte(bv >> 8)
+			// RGBA() channels are 16-bit (0-0xffff); >>8 always yields 0-0xff, so
+			// these truncations to byte are lossless-by-design, not overflow risk.
+			argb[i] = byte(a >> 8)     //nolint:gosec
+			argb[i+1] = byte(r >> 8)  //nolint:gosec
+			argb[i+2] = byte(g >> 8)  //nolint:gosec
+			argb[i+3] = byte(bv >> 8) //nolint:gosec
 		}
 	}
-	return []pixmap{{int32(w), int32(h), argb}}
+	return []pixmap{{int32(w), int32(h), argb}} //nolint:gosec // w,h are the embedded app icon's own dimensions (tens of px), not external input
 }
 
 func HideFromDock() {}

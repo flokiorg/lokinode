@@ -18,12 +18,12 @@ func appDataDir() string {
 
 func setupCrashLog() {
 	workDir := appDataDir()
-	if err := os.MkdirAll(workDir, 0755); err != nil {
+	if err := os.MkdirAll(workDir, 0750); err != nil {
 		return
 	}
 
 	logFile := filepath.Join(workDir, "crash.log")
-	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
 	if err != nil {
 		return
 	}
@@ -38,10 +38,10 @@ func setupCrashLog() {
 
 func openLokinodeLog() *os.File {
 	workDir := appDataDir()
-	if err := os.MkdirAll(workDir, 0755); err != nil {
+	if err := os.MkdirAll(workDir, 0750); err != nil {
 		return nil
 	}
-	f, err := os.OpenFile(filepath.Join(workDir, "lokinode.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(filepath.Join(workDir, "lokinode.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
 	if err != nil {
 		return nil
 	}

@@ -428,7 +428,7 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 			StartHeight:     0,
 			EndHeight:       -1,
 			MaxTransactions: 1,
-			IndexOffset:     uint32(lastIndex + 1),
+			IndexOffset:     uint32(lastIndex + 1), //nolint:gosec // would need ~4B wallet txs to overflow uint32; the pagination loop below has the real guard
 		})
 		cancel()
 
@@ -469,7 +469,7 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 			StartHeight:     0,
 			EndHeight:       -1,
 			MaxTransactions: transactionPageSize,
-			IndexOffset:     uint32(cursor),
+			IndexOffset:     uint32(cursor), // clamped to uint32 range by the overflow check a few lines below each iteration
 		})
 		cancel()
 		if err != nil {
@@ -493,7 +493,7 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 		if cursor > uint64(^uint32(0)) {
 			break
 		}
-		if uint32(len(resp.Transactions)) < transactionPageSize {
+		if uint32(len(resp.Transactions)) < transactionPageSize { //nolint:gosec // a single RPC page is capped at transactionPageSize (200), never remotely near uint32 range
 			break
 		}
 	}
@@ -564,7 +564,7 @@ func (c *Client) FundPsbt(addrToAmount map[string]int64, lokiPerVbyte uint64, lo
 	log.Trace().Uint64("fee_rate", lokiPerVbyte).Int("outputs", len(addrToAmount)).Msg("funding PSBT")
 	outputs := make(map[string]uint64, len(addrToAmount))
 	for a, v := range addrToAmount {
-		outputs[a] = uint64(v)
+		outputs[a] = uint64(v) //nolint:gosec // callers (handleFundPsbt, MaxSendable) validate amount > 0 first
 	}
 	resp, err := c.walletKit.FundPsbt(c.withMacaroon(), &walletrpc.FundPsbtRequest{
 		Template: &walletrpc.FundPsbtRequest_Raw{
@@ -1337,7 +1337,7 @@ func (c *Client) SendCoins(address string, amountLoki int64, lokiPerVbyte int64)
 	resp, err := c.lnClient.SendCoins(ctx, &lnrpc.SendCoinsRequest{
 		Addr:        address,
 		Amount:      amountLoki,
-		SatPerVbyte: uint64(lokiPerVbyte),
+		SatPerVbyte: uint64(lokiPerVbyte), //nolint:gosec // lokiPerVbyte > 0 is enforced by handleSend before this is reached
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("send coins failed")
@@ -1361,7 +1361,7 @@ func (c *Client) EstimateFee(address string, amountLoki int64) (lokiPerVbyte int
 	if err != nil {
 		return 0, 0, err
 	}
-	return int64(resp.SatPerVbyte), resp.FeeSat, nil
+	return int64(resp.SatPerVbyte), resp.FeeSat, nil //nolint:gosec // fee rate from our own lnd's RPC response, never remotely close to MaxInt64
 }
 
 // MaxSendable calculates the maximum amount that can be sent to an address
@@ -1405,7 +1405,7 @@ func (c *Client) MaxSendable(address string, lokiPerVbyte int64) (amount int64, 
 	//    almost immediately even if the release call below fails.
 	funded, fundErr := c.FundPsbt(
 		map[string]int64{address: tryAmount},
-		uint64(lokiPerVbyte),
+		uint64(lokiPerVbyte), //nolint:gosec // lokiPerVbyte > 0 is enforced by handleMaxSendable before this is reached
 		5,
 	)
 	if fundErr != nil {
@@ -1522,7 +1522,7 @@ func (c *Client) refreshMacaroon() {
 // --- internal helpers ---
 
 func readMacaroon(path string) (string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path is c.config.AdminMacPath, server-derived config, not request input
 	if err != nil {
 		return "", err
 	}

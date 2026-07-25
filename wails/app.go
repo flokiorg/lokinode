@@ -56,7 +56,11 @@ var errNoProfile = errors.New("no node profile configured")
 // from the root package (go:embed cannot cross directory boundaries).
 func New(wailsJSON string) *App {
 	b := make([]byte, 32)
-	crypto_rand.Read(b) // use crypto/rand here
+	if _, err := crypto_rand.Read(b); err != nil {
+		// The OS CSPRNG is unavailable - continuing would mean serving the
+		// API behind a weak/predictable token, so fail loudly instead.
+		panic("failed to generate API token: " + err.Error())
+	}
 	token := hex.EncodeToString(b)
 	return &App{wailsJSON: wailsJSON, apiToken: token}
 }

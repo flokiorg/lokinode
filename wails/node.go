@@ -96,7 +96,8 @@ func (a *App) GetDefaultNodeDir() string {
 
 // IsDirEmpty reports whether path does not exist yet or is an empty directory.
 func (a *App) IsDirEmpty(path string) (bool, error) {
-	f, err := os.Open(path)
+	path = filepath.Clean(path)
+	f, err := os.Open(path) //nolint:gosec // path is a user-chosen local directory (folder picker), cleaned above
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, nil
