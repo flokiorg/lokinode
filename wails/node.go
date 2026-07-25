@@ -103,7 +103,7 @@ func (a *App) IsDirEmpty(path string) (bool, error) {
 		}
 		return false, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	names, err := f.Readdirnames(-1)
 	if err != nil {
