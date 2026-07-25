@@ -1,22 +1,16 @@
 name: macOS Build
 
-# NOTE: macOS universal builds require an Apple Silicon self-hosted runner ([self-hosted, macos-arm]).
-# This workflow will queue but fail if no such runner is registered.
-
 on:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   build-macos:
     name: Build macOS Desktop (Universal)
-    # Requires an Apple Silicon self-hosted runner for universal builds
-    runs-on: [self-hosted, macos-arm]
+    runs-on: macos-14
     permissions:
       contents: read
     steps:
-      - name: Pre-Checkout Cleanup
-        run: rm -rf * || true
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -25,7 +19,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version-file: go.mod
 
       - name: Setup Node
         uses: actions/setup-node@v4
