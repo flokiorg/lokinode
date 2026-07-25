@@ -38,6 +38,9 @@ func handleCredentials(app App) echo.HandlerFunc {
 					if raw, err := os.ReadFile(cfg.TLSCertPath); err == nil {
 						resp.TLSCertHex = hex.EncodeToString(raw)
 					}
+				default:
+					// Wallet not yet unlocked (Init/None/Starting/Locked/NoWallet/Down) -
+					// credential hex fields stay empty until it is.
 				}
 			}
 		}
