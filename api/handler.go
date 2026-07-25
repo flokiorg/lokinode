@@ -35,12 +35,6 @@ type App interface {
 	IsDirEmpty(dir string) (bool, error)
 }
 
-// maxRequestBodyBytes caps incoming request bodies at 4 MB.
-// The /send/finalize-psbt endpoint receives a hex-encoded PSBT that can grow
-// large when the wallet has many small UTXOs (~800 bytes per input as hex), so
-// a limit well above typical PSBT sizes is required.
-const maxRequestBodyBytes = 4 * 1024 * 1024
-
 // NewHandler returns an http.Handler that serves all /api/* routes.
 // Non-matching paths return 404, which tells Wails to fall through to the
 // embedded static assets.
