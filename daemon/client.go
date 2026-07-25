@@ -491,7 +491,6 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 
 		cursor = uint64(resp.LastIndex) + 1
 		if cursor > uint64(^uint32(0)) {
-			cursor = uint64(^uint32(0))
 			break
 		}
 		if uint32(len(resp.Transactions)) < transactionPageSize {

@@ -10,8 +10,10 @@ import (
 )
 
 func txToItem(tx *lnrpc.Transaction) TransactionItem {
-	addrs := make([]string, 0, len(tx.DestAddresses))
-	addrs = append(addrs, tx.DestAddresses...)
+	addrs := make([]string, 0, len(tx.OutputDetails))
+	for _, out := range tx.OutputDetails {
+		addrs = append(addrs, out.Address)
+	}
 	return TransactionItem{
 		TxHash:        tx.TxHash,
 		Amount:        tx.Amount,
