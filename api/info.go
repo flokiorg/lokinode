@@ -117,6 +117,9 @@ func handleInfo(app App) echo.HandlerFunc {
 					resp.State = string(daemon.StatusUnlocked)
 				case lnrpc.WalletState_RPC_ACTIVE, lnrpc.WalletState_SERVER_ACTIVE:
 					resp.State = string(daemon.StatusSyncing)
+				default:
+					// e.g. WAITING_TO_START - resp.State is already "starting"/"init"
+					// here, so no change needed.
 				}
 			}
 		}
