@@ -1,7 +1,6 @@
 package wails
 
 import (
-	"bytes"
 	"context"
 	crypto_rand "crypto/rand"
 	"encoding/hex"
@@ -225,7 +224,3 @@ func (a *App) GetLogDir() string {
 	return filepath.Join(a.GetDefaultNodeDir(), "logs", "flokicoin", "main")
 }
 
-// stringReader wraps a string as an io.Reader for config parsing.
-func stringReader(s string) *bytes.Reader {
-	return bytes.NewReader([]byte(s))
-}

@@ -199,15 +199,6 @@ func handleInfo(app App) echo.HandlerFunc {
 	}
 }
 
-// extractHostPort parses a flnd node URI of the form "pubkey@host:port"
-// and returns the "host:port" portion, or "" if the URI is malformed.
-func extractHostPort(uri string) string {
-	if idx := strings.Index(uri, "@"); idx >= 0 {
-		return uri[idx+1:]
-	}
-	return ""
-}
-
 // apiErr writes a JSON error body and returns the error for the caller to return.
 func apiErr(c echo.Context, status int, err error) error {
 	msg := "unknown error"
