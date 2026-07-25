@@ -1244,7 +1244,8 @@ func (c *Client) cachedTLSCertHex() (string, error) {
 // resolveAddresses computes the local RPC + public peer addresses. The UDP
 // dial is local-only (no packet sent) and typically resolves in microseconds.
 func (c *Client) resolveAddresses() (rpc, peer string) {
-	conn, err := net.Dial("udp", publicDNSCheckAddress)
+	var d net.Dialer
+	conn, err := d.DialContext(context.Background(), "udp", publicDNSCheckAddress)
 	if err != nil {
 		return "", ""
 	}
