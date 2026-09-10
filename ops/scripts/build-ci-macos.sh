@@ -103,6 +103,15 @@ build_macos_desktop() {
     cp "build/darwin/AppIcon.icns" "$APP_DEST/Contents/Resources/AppIcon.icns" || echo "Warning: Could not copy icon"
     touch "$APP_DEST"
 
+    # Wails ad-hoc signs each per-arch .app during `wails build`, but the lipo
+    # merge above and the icon copy just above both modify the bundle after
+    # that, invalidating the signature (mismatched checksum -> Gatekeeper
+    # shows "app is damaged", not the normal bypassable "unidentified
+    # developer" prompt). Re-sign ad-hoc now that the bundle is final, no
+    # earlier and no later.
+    echo "Ad-hoc signing the universal app bundle..."
+    codesign --force --deep --sign - "$APP_DEST"
+
     if [ -d "$APP_DEST" ]; then
         create-dmg \
             --volname "Lokinode" \
