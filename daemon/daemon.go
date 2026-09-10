@@ -283,6 +283,7 @@ func (d *flndDaemon) stop() {
 }
 
 func tlsCreds(certPath string) (credentials.TransportCredentials, error) {
+	// #nosec G304 -- certPath is flnd's own TLSCertPath from config, not request input
 	pem, err := os.ReadFile(certPath) //nolint:gosec // certPath is flnd's own TLSCertPath from config, not request input
 	if err != nil {
 		return nil, err

@@ -74,8 +74,8 @@ type Client struct {
 	adminMacHex string
 	tlsCertHex  string
 
-	subTxsOnce sync.Once
-	cache      *txCache
+	subTxsOnce   sync.Once
+	cache        *txCache
 	txFetchLimit uint32
 
 	syncPollingActive bool
@@ -428,7 +428,8 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 			StartHeight:     0,
 			EndHeight:       -1,
 			MaxTransactions: 1,
-			IndexOffset:     uint32(lastIndex + 1), //nolint:gosec // would need ~4B wallet txs to overflow uint32; the pagination loop below has the real guard
+			// #nosec G115 -- would need ~4B wallet txs to overflow uint32; the pagination loop below has the real guard
+			IndexOffset: uint32(lastIndex + 1), //nolint:gosec // would need ~4B wallet txs to overflow uint32; the pagination loop below has the real guard
 		})
 		cancel()
 
@@ -493,6 +494,7 @@ func (c *Client) FetchTransactionsWithOptions(opts FetchTransactionsOptions) ([]
 		if cursor > uint64(^uint32(0)) {
 			break
 		}
+		// #nosec G115 -- a single RPC page is capped at transactionPageSize (200), never remotely near uint32 range
 		if uint32(len(resp.Transactions)) < transactionPageSize { //nolint:gosec // a single RPC page is capped at transactionPageSize (200), never remotely near uint32 range
 			break
 		}
@@ -564,6 +566,7 @@ func (c *Client) FundPsbt(addrToAmount map[string]int64, lokiPerVbyte uint64, lo
 	log.Trace().Uint64("fee_rate", lokiPerVbyte).Int("outputs", len(addrToAmount)).Msg("funding PSBT")
 	outputs := make(map[string]uint64, len(addrToAmount))
 	for a, v := range addrToAmount {
+		// #nosec G115 -- callers (handleFundPsbt, MaxSendable) validate amount > 0 first
 		outputs[a] = uint64(v) //nolint:gosec // callers (handleFundPsbt, MaxSendable) validate amount > 0 first
 	}
 	resp, err := c.walletKit.FundPsbt(c.withMacaroon(), &walletrpc.FundPsbtRequest{
@@ -933,7 +936,7 @@ func (c *Client) IsSynced() (bool, bool, uint32, int64, error) {
 	var synced bool
 	var recentHeader bool
 	if resp != nil {
-		blockHeight  = resp.BlockHeight
+		blockHeight = resp.BlockHeight
 		bestHeaderTs = resp.BestHeaderTimestamp
 		synced = err == nil && resp.SyncedToChain
 		if !synced && err == nil {
@@ -1335,8 +1338,9 @@ func (c *Client) SendCoins(address string, amountLoki int64, lokiPerVbyte int64)
 	ctx, cancel := c.rpcContext(0)
 	defer cancel()
 	resp, err := c.lnClient.SendCoins(ctx, &lnrpc.SendCoinsRequest{
-		Addr:        address,
-		Amount:      amountLoki,
+		Addr:   address,
+		Amount: amountLoki,
+		// #nosec G115 -- lokiPerVbyte > 0 is enforced by handleSend before this is reached
 		SatPerVbyte: uint64(lokiPerVbyte), //nolint:gosec // lokiPerVbyte > 0 is enforced by handleSend before this is reached
 	})
 	if err != nil {
@@ -1361,6 +1365,7 @@ func (c *Client) EstimateFee(address string, amountLoki int64) (lokiPerVbyte int
 	if err != nil {
 		return 0, 0, err
 	}
+	// #nosec G115 -- fee rate from our own lnd's RPC response, never remotely close to MaxInt64
 	return int64(resp.SatPerVbyte), resp.FeeSat, nil //nolint:gosec // fee rate from our own lnd's RPC response, never remotely close to MaxInt64
 }
 
@@ -1405,6 +1410,7 @@ func (c *Client) MaxSendable(address string, lokiPerVbyte int64) (amount int64, 
 	//    almost immediately even if the release call below fails.
 	funded, fundErr := c.FundPsbt(
 		map[string]int64{address: tryAmount},
+		// #nosec G115 -- lokiPerVbyte > 0 is enforced by handleMaxSendable before this is reached
 		uint64(lokiPerVbyte), //nolint:gosec // lokiPerVbyte > 0 is enforced by handleMaxSendable before this is reached
 		5,
 	)
@@ -1522,6 +1528,7 @@ func (c *Client) refreshMacaroon() {
 // --- internal helpers ---
 
 func readMacaroon(path string) (string, error) {
+	// #nosec G304 -- path is c.config.AdminMacPath, server-derived config, not request input
 	data, err := os.ReadFile(path) //nolint:gosec // path is c.config.AdminMacPath, server-derived config, not request input
 	if err != nil {
 		return "", err

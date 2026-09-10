@@ -30,6 +30,7 @@ func handleLogs(app App) echo.HandlerFunc {
 			}
 		}
 
+		// #nosec G304 -- logPath comes from findLogFile(app.GetLogDir()), not request input
 		f, err := os.Open(logPath) //nolint:gosec // logPath comes from findLogFile(app.GetLogDir()), not request input
 		if err != nil {
 			return c.JSON(http.StatusOK, map[string][]string{"lines": {}})
@@ -107,10 +108,11 @@ func handleLogsStream(app App) echo.HandlerFunc {
 
 			case <-pollTick.C:
 				if f == nil {
-						logPath, err := findLogFile(logDir)
+					logPath, err := findLogFile(logDir)
 					if err != nil {
 						continue
 					}
+					// #nosec G304 -- logPath comes from findLogFile(app.GetLogDir()), not request input
 					f, err = os.Open(logPath) //nolint:gosec // logPath comes from findLogFile(app.GetLogDir()), not request input
 					if err != nil {
 						continue

@@ -1,0 +1,19 @@
+# Known govulncheck findings accepted as unfixable, reviewed 2026-09-10.
+# See docs/DEPENDENCIES.md "known-unfixable govulncheck findings" for the
+# full writeup of why each entry here has no available fix.
+#
+# Format: one OSV ID per line, "#" starts a comment, blank lines ignored.
+# CI (security-go job in .github/workflows/ci.yaml) fails if govulncheck
+# reports a *reachable* finding whose ID is not listed here — so adding a
+# line here is a deliberate, reviewed risk acceptance, not a silence-all.
+
+# Moby AuthZ plugin bypass with oversized request bodies (github.com/docker/docker).
+# Fixed in: N/A even at latest (v28.5.2, checked 2026-09-10). Bug lives in dockerd's
+# server-side plugin/AuthZ code; lokinode never runs dockerd. Pulled in only because
+# flnd's lncfg package imports docker/docker/api/types/* struct types for config
+# parsing (daemon/config.go:7).
+GO-2026-4887
+
+# Moby off-by-one error in plugin privilege validation (github.com/docker/docker).
+# Same root cause and same "Fixed in: N/A" status as GO-2026-4887 above.
+GO-2026-4883
