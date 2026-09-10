@@ -1,4 +1,5 @@
 //go:build linux
+
 package tray
 
 // Linux system tray via the StatusNotifierItem D-Bus spec.
@@ -55,7 +56,7 @@ func (s *sniMethods) SecondaryActivate(x, y int32) *dbus.Error {
 	return nil
 }
 
-func (s *sniMethods) ContextMenu(x, y int32) *dbus.Error { return nil }
+func (s *sniMethods) ContextMenu(x, y int32) *dbus.Error                 { return nil }
 func (s *sniMethods) Scroll(delta int32, orientation string) *dbus.Error { return nil }
 
 // menuNode matches the D-Bus type (ia{sv}av) used by com.canonical.dbusmenu.
@@ -169,15 +170,20 @@ func pngToPixmaps(data []byte) []pixmap {
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		for x := b.Min.X; x < b.Max.X; x++ {
 			r, g, bv, a := img.At(x, y).RGBA()
-			i := ((y-b.Min.Y)*w + (x-b.Min.X)) * 4
+			i := ((y-b.Min.Y)*w + (x - b.Min.X)) * 4
 			// RGBA() channels are 16-bit (0-0xffff); >>8 always yields 0-0xff, so
 			// these truncations to byte are lossless-by-design, not overflow risk.
-			argb[i] = byte(a >> 8)     //nolint:gosec
-			argb[i+1] = byte(r >> 8)  //nolint:gosec
-			argb[i+2] = byte(g >> 8)  //nolint:gosec
+			// #nosec G115 -- lossless truncation, see comment above
+			argb[i] = byte(a >> 8) //nolint:gosec
+			// #nosec G115 -- lossless truncation, see comment above
+			argb[i+1] = byte(r >> 8) //nolint:gosec
+			// #nosec G115 -- lossless truncation, see comment above
+			argb[i+2] = byte(g >> 8) //nolint:gosec
+			// #nosec G115 -- lossless truncation, see comment above
 			argb[i+3] = byte(bv >> 8) //nolint:gosec
 		}
 	}
+	// #nosec G115 -- w,h are the embedded app icon's own dimensions (tens of px), not external input
 	return []pixmap{{int32(w), int32(h), argb}} //nolint:gosec // w,h are the embedded app icon's own dimensions (tens of px), not external input
 }
 

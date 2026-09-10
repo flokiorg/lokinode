@@ -21,3 +21,7 @@ export function OpenDirectorySelector(arg1) {
 export function OpenFileSelector(arg1) {
   return window['go']['wails']['Bindings']['OpenFileSelector'](arg1);
 }
+
+export function RevealNodeFolder(arg1) {
+  return window['go']['wails']['Bindings']['RevealNodeFolder'](arg1);
+}

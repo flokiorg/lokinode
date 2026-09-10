@@ -202,9 +202,23 @@ func (a *App) RestartNode() error {
 	if err != nil {
 		return err
 	}
-	// We need an interceptor for BuildAndValidate. Since the node is already 
-	// running, signal.Intercept() will return "already started".
-	interceptor, _ := signal.Intercept()
+	// BuildAndValidate needs an interceptor. When the daemon is already running
+	// (lock / settings-restart) signal.Intercept() returns "already started" and
+	// the running daemon owns it — don't touch it. When the daemon has crashed
+	// (Retry from the error screen) it returns a fresh interceptor that WE now
+	// own: it must be released here, otherwise the service's run loop spins
+	// forever on "already started" in acquireSignalInterceptor and the restart
+	// never produces a real start cycle. Mirrors VerifyConfig.
+	interceptor, ierr := signal.Intercept()
+	if ierr != nil && !strings.Contains(ierr.Error(), "already started") {
+		return ierr
+	}
+	if ierr == nil {
+		defer func() {
+			interceptor.RequestShutdown()
+			<-interceptor.ShutdownChannel()
+		}()
+	}
 	cfg, err := daemon.BuildAndValidate(interceptor, ucfg)
 	if err != nil {
 		return err

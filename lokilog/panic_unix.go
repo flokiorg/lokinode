@@ -23,6 +23,7 @@ func setupCrashLog() {
 	}
 
 	logFile := filepath.Join(workDir, "crash.log")
+	// #nosec G304 -- fixed filename under xdg.DataHome, not request input
 	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
 	if err != nil {
 		return
@@ -41,6 +42,7 @@ func openLokinodeLog() *os.File {
 	if err := os.MkdirAll(workDir, 0750); err != nil {
 		return nil
 	}
+	// #nosec G304 -- fixed filename under xdg.DataHome, not request input
 	f, err := os.OpenFile(filepath.Join(workDir, "lokinode.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
 	if err != nil {
 		return nil

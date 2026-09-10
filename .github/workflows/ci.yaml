@@ -115,8 +115,11 @@ jobs:
     name: govulncheck + gosec
     needs: build-frontend
     runs-on: ubuntu-latest
-    # Non-blocking: first run establishes a baseline; revisit once triaged.
-    continue-on-error: true
+    # Blocking: baseline (15 govulncheck + 18 gosec findings) triaged and
+    # fixed/suppressed. The 2 govulncheck findings with no upstream fix
+    # (see .github/govulncheck-allowlist.txt) are explicitly allow-listed
+    # rather than silenced with continue-on-error, so a genuinely new
+    # reachable vulnerability still fails the build.
     permissions:
       contents: read
     steps:
@@ -135,7 +138,37 @@ jobs:
           go-version-file: go.mod
 
       - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest -format json ./... > govulncheck.json
+
+          # A finding is "reachable" (actually affects lokinode, not just an
+          # imported-but-uncalled dependency) when its trace terminates back
+          # in our own module.
+          reachable=$(jq -r '
+            select(.finding != null) | .finding |
+            select((.trace | length) > 0) |
+            select(.trace[-1].module == "github.com/flokiorg/lokinode") |
+            .osv
+          ' govulncheck.json | sort -u)
+
+          allowed=$(grep -v '^\s*#' .github/govulncheck-allowlist.txt | grep -v '^\s*$' | sort -u)
+
+          unexpected=$(comm -23 <(echo "$reachable") <(echo "$allowed") | sed '/^$/d')
+
+          if [ -n "$reachable" ]; then
+            echo "Reachable findings: $(echo "$reachable" | tr '\n' ' ')"
+          else
+            echo "No reachable findings."
+          fi
+
+          if [ -n "$unexpected" ]; then
+            echo "::error::New reachable govulncheck finding(s) not in .github/govulncheck-allowlist.txt: $(echo "$unexpected" | tr '\n' ' ')"
+            echo "Run 'go run golang.org/x/vuln/cmd/govulncheck@latest ./...' locally, fix what you can," \
+                 "and add anything genuinely unfixable to .github/govulncheck-allowlist.txt with a reason."
+            exit 1
+          fi
+
+          echo "Only allow-listed findings present (see .github/govulncheck-allowlist.txt) — OK."
 
       - name: gosec
         run: go run github.com/securego/gosec/v2/cmd/gosec@latest ./...

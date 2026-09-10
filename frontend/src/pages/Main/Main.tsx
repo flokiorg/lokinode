@@ -21,7 +21,7 @@ import { useTransitionStore } from '@/components/TransitionOverlay/TransitionOve
 import { useToast } from '@/hooks/useToast';
 import { fetcher, post, patch } from '@/lib/fetcher';
 import { Toaster } from '@/components/ui/toaster';
-import { GetDefaultNodeDir, OpenDirectorySelector } from '../../../wailsjs/go/wails/Bindings';
+import { GetDefaultNodeDir, OpenDirectorySelector, RevealNodeFolder } from '../../../wailsjs/go/wails/Bindings';
 import { frontend } from '../../../wailsjs/go/models';
 
 function Main() {
@@ -39,7 +39,7 @@ function Main() {
   const autoStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { event: sseEvent } = useEventStream();
+  const { event: sseEvent, resetEvent } = useEventStream();
   const transitionActive = useTransitionStore(s => s.isActive);
   const endTransition   = useTransitionStore(s => s.endTransition);
 
@@ -187,6 +187,10 @@ function Main() {
     setUserStopped(false);
     setAutoUnlockPending(true);
     setAutoStarting(true);
+    // Drop any leftover SSE event (e.g. the final `down` from the previous
+    // Stop) so /node doesn't briefly render it as a "Node Error" before the
+    // new daemon's first event arrives.
+    resetEvent();
     try {
       // Fetch config from DB — authoritative source for this node's settings.
       const cfg = await fetcher<NodeConfigDTO>(`/api/node/config?dir=${encodeURIComponent(dir)}`);
@@ -266,6 +270,14 @@ function Main() {
 
     const currentAlias = node.alias || t('main.default_alias');
     await performStart(node.dir, currentAlias);
+  }
+
+  async function handleRevealFolder(dir: string) {
+    try {
+      await RevealNodeFolder(dir);
+    } catch (err) {
+      toast({ variant: 'destructive', title: t('node.errors.open_folder_failed'), description: String(err) });
+    }
   }
 
   async function handleRemoveNode(dir: string) {
@@ -438,7 +450,7 @@ function Main() {
                   {aliasError && <span className="text-red-400 text-[11px] mt-[4px]">{aliasError}</span>}
                 </div>
               ) : (
-                <div className="flex items-center gap-[12px] translate-x-[16px]">
+                <div className="flex items-center gap-[8px] translate-x-[32px]">
                   <h1 className="text-white text-[32px] font-bold font-headline">{displayAlias}</h1>
                   <button
                     onClick={handleEditAlias}
@@ -447,6 +459,15 @@ function Main() {
                   >
                     <Edit2 size={16} />
                   </button>
+                  {nodeDir && (
+                    <button
+                      onClick={() => handleRevealFolder(nodeDir)}
+                      className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/5 rounded-full transition-all text-gray-400 hover:text-white"
+                      title={t('node.open_folder')}
+                    >
+                      <FolderOpen size={16} />
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -647,22 +668,30 @@ function Main() {
                               <span className="text-[11px] text-gray-600 font-mono">{shortDir}</span>
                             </div>
 
-                            {/* Actions — revealed on hover, current always shown */}
-                            <div className="flex items-center gap-[4px] shrink-0">
+                            {/* Actions — always visible so they read clearly on the floating sheet */}
+                            <div className="flex items-center gap-[6px] shrink-0">
+                              <button
+                                onClick={e => { e.stopPropagation(); handleRevealFolder(node.dir); }}
+                                title={t('node.open_folder')}
+                                className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-white/[0.05] border border-white/[0.08] text-gray-300 hover:text-[#DA9526] hover:border-[#DA9526]/40 active:scale-[0.94] transition-all"
+                              >
+                                <FolderOpen size={13} strokeWidth={1.8} />
+                              </button>
                               {!isCurrent && (
                                 <button
                                   onClick={e => { e.stopPropagation(); setConfirmRemove(node.dir); }}
-                                  className="w-[26px] h-[26px] rounded-full flex items-center justify-center text-gray-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                  className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-white/[0.05] border border-white/[0.08] text-gray-300 hover:text-red-400 hover:border-red-500/40 active:scale-[0.94] transition-all"
                                 >
-                                  <Trash2 size={12} strokeWidth={1.8} />
+                                  <Trash2 size={13} strokeWidth={1.8} />
                                 </button>
                               )}
                               <button
                                 onClick={e => { e.stopPropagation(); handleSwitchNode(node); }}
-                                className={`w-[28px] h-[28px] rounded-full flex items-center justify-center transition-all ${
+                                title={t('main.power_hint')}
+                                className={`w-[30px] h-[30px] rounded-full flex items-center justify-center border active:scale-[0.94] transition-all ${
                                   isCurrent
-                                    ? 'text-[#DA9526] bg-[#DA9526]/10'
-                                    : 'text-gray-700 group-hover:text-[#DA9526] group-hover:bg-[#DA9526]/10 opacity-0 group-hover:opacity-100'
+                                    ? 'text-[#DA9526] bg-[#DA9526]/15 border-[#DA9526]/40'
+                                    : 'text-gray-300 bg-white/[0.05] border-white/[0.08] hover:text-[#DA9526] hover:border-[#DA9526]/40'
                                 }`}
                               >
                                 <Power size={13} strokeWidth={1.8} />
