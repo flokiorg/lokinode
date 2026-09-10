@@ -12,3 +12,9 @@ export function formatFLC(loki: number): string {
   });
 }
 
+// shortPath collapses a filesystem path to "…/parent/leaf" for compact display.
+export function shortPath(p: string): string {
+  const parts = p.replace(/\\/g, '/').split('/').filter(Boolean);
+  return parts.length <= 2 ? p : '…/' + parts.slice(-2).join('/');
+}
+

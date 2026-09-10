@@ -11,3 +11,5 @@ export function GetDefaultNodeDir():Promise<string>;
 export function OpenDirectorySelector(arg1:frontend.OpenDialogOptions):Promise<string>;
 
 export function OpenFileSelector(arg1:frontend.OpenDialogOptions):Promise<string>;
+
+export function RevealNodeFolder(arg1:string):Promise<void>;

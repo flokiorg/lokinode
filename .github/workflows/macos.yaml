@@ -30,7 +30,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 
       - name: Read Version
         id: version

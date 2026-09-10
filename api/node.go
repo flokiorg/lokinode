@@ -20,6 +20,30 @@ func handleNodeStart(app App) echo.HandlerFunc {
 			log.Warn().Msg("node start rate-limited")
 			return apiErr(c, http.StatusTooManyRequests, errTooManyAttempts)
 		}
+		// A service that is already attached may be healthy OR sitting in
+		// StatusDown after a crash (Service.waitForRetry keeps the pointer).
+		// RunNode is a no-op in both cases, so a crashed node could never be
+		// restarted from the Main power button. Bounce the service instead —
+		// RestartWithConfig restarts a running daemon and interrupts the
+		// retry-gate of a crashed one. The verify-config call that always
+		// precedes /node/start has already refreshed app.Config() for this dir,
+		// so pass it straight through (no signal.Intercept re-acquire here —
+		// that path leaks the interceptor when the daemon is not running).
+		if svc := app.Service(); svc != nil {
+			log.Info().Msg("node start requested; service already attached, restarting")
+			var err error
+			if cfg := app.Config(); cfg != nil {
+				err = svc.RestartWithConfig(cfg)
+			} else {
+				err = svc.Restart()
+			}
+			if err != nil {
+				log.Error().Err(err).Msg("node restart failed")
+				return apiErr(c, http.StatusInternalServerError, err)
+			}
+			return c.NoContent(http.StatusNoContent)
+		}
+
 		log.Info().Msg("node start requested")
 		if err := app.RunNode(); err != nil {
 			log.Error().Err(err).Msg("node start failed")

@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Power, Lock, Zap, Loader, Loader2, Check, Copy, RefreshCw, X, AlertCircle, Eye, EyeOff, Home } from 'lucide-react';
+import { Power, Lock, Zap, Loader, Loader2, Check, Copy, RefreshCw, X, AlertCircle, Eye, EyeOff, Home, FolderOpen, ScrollText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { RevealNodeFolder } from '../../../wailsjs/go/wails/Bindings';
+import { LogOverlay } from '@/components/LogStream/LogOverlay';
 import { useTranslation } from '@/i18n/context';
 import { useToast } from '@/hooks/useToast';
 import { useInfo } from '@/hooks/useInfo';
@@ -20,7 +22,7 @@ import Send from '@/views/node/Send';
 import { useNodeSessionStore } from '@/store/nodeSession';
 import { ConfirmButton } from '@/components/ui/ConfirmButton';
 import { KineticSpinner } from '@/components/ui/KineticSpinner';
-import { formatFLC } from '@/lib/utils';
+import { formatFLC, shortPath } from '@/lib/utils';
 import { useTransitionStore } from '@/components/TransitionOverlay/TransitionOverlay';
 import { InfoResponse, BalanceResponse, StateEvent } from '@/lib/types';
 
@@ -66,6 +68,7 @@ function Node() {
   const {
     walletUnlocked,
     setWalletUnlocked,
+    userStopped,
     setUserStopped,
     autoUnlockPending,
     setAutoUnlockPending,
@@ -86,6 +89,9 @@ function Node() {
   const [isLocking, setIsLocking] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [showLogs, setShowLogs] = useState(false);
+  const [stopArmed, setStopArmed] = useState(false);
+  const stopArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [startTime] = useState(() => Math.floor(Date.now() / 1000));
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,11 +104,6 @@ function Node() {
   // 'starting' value between clicks, which isn't guaranteed under load.
   const restartInFlightRef = useRef(false);
   const recoveryInFlightRef = useRef(false);
-  // Prevents the stale 'down' SSE event (stored in the singleton
-  // EventStreamProvider) from showing "Node Error" immediately when the
-  // component mounts after a deliberate power-off. Only show the error screen
-  // once we've actually observed the node running in this mount session.
-  const hasSeenNonDownRef = useRef(false);
   // Unix-second timestamp of the last received block/tx event; used to display
   // "Last block: X ago" in the active overview and to hint at chain staleness.
   const lastBlockAtRef = useRef<number>(0);
@@ -124,7 +125,13 @@ function Node() {
   const isLocked           = state === STATUS_LOCKED;
   const isNoWallet         = state === STATUS_NO_WALLET;
   const neutrinoCorrupted  = !!(event?.neutrinoCorrupted ?? info?.neutrinoCorrupted);
-  const isDown             = state === STATUS_DOWN && hasSeenNonDownRef.current && !isRetrying && !isRecovering;
+  // Show the "Node Error" screen for any `down` state that the user did not
+  // ask for. A deliberate power-off sets `userStopped` (and navigates home,
+  // where nodeLoader blocks re-mounting /node while nodeRunning is false), so
+  // the only `down` that reaches here unbidden is a genuine startup failure /
+  // crash — which must surface with a Retry button rather than falling through
+  // to a locked, actionless "Connecting to chain…" spinner.
+  const isDown             = state === STATUS_DOWN && !userStopped && !isRetrying && !isRecovering;
 
   // ── Unlock ────────────────────────────────────────────────────────────────────
   async function handleUnlock() {
@@ -259,7 +266,6 @@ function Node() {
 
   useEffect(() => {
     if (event === null) return;
-    if (event.state !== STATUS_DOWN) hasSeenNonDownRef.current = true;
     // Any event from the backend means the daemon responded — clear the
     // retrying/recovering spinner regardless of whether it succeeded or failed again.
     if (isRetrying) setIsRetrying(false);
@@ -377,6 +383,8 @@ function Node() {
     }
   }, [showUnlock]);
 
+  useEffect(() => () => { if (stopArmTimerRef.current) clearTimeout(stopArmTimerRef.current); }, []);
+
   // Tick every second so the "Last block" display counts up accurately.
   const [, forceTickUpdate] = useState(0);
   useEffect(() => {
@@ -413,11 +421,47 @@ function Node() {
     syncing: t('node.sync.syncing'), scanning: t('node.sync.scanning'), tx: t('node.sync.tx'),
   };
 
+  // Syncing-phase escape hatch: if we sit in 'syncing' for ~45s with no block
+  // progress, promote the "View logs / Stop" row and swap in a plainer sub-label
+  // so the user isn't left guessing. Reset on any block-height advance. Mutating
+  // refs in render matches the existing SyncProgress pattern below; the 1s
+  // forceTickUpdate keeps this re-evaluating.
+  const syncHeight = event?.blockHeight ?? info?.blockHeight ?? 0;
+  const syncingSinceRef = useRef(0);
+  const syncHeightRef = useRef(0);
+  if (syncing) {
+    if (syncingSinceRef.current === 0) syncingSinceRef.current = Date.now();
+    if (syncHeight > syncHeightRef.current) {
+      syncHeightRef.current = syncHeight;
+      syncingSinceRef.current = Date.now();
+    }
+  } else {
+    syncingSinceRef.current = 0;
+    syncHeightRef.current = 0;
+  }
+  const syncSlow = syncingSinceRef.current > 0 && Date.now() - syncingSinceRef.current > 45_000;
+
+  // Escape-hatch actions rendered outside the pointer-events-none container.
+  //  · "View logs"  — while syncing/starting or errored (diagnostics matter here)
+  //  · "Power off"   — while syncing/starting or locked. The daemon IS running in
+  //    both cases; "Locked" only means the wallet is sealed, so the user still
+  //    needs a way to shut the node down without unlocking it first.
+  const showLogsLink  = (syncing || isDown) && !isStopping && !isRestarting;
+  const showPowerOff  = (syncing || isLocked) && !isStopping && !isLocking && !isRestarting;
+  const showEscapeHatch = showLogsLink || showPowerOff;
+
+  function armOrStop() {
+    if (stopArmTimerRef.current) clearTimeout(stopArmTimerRef.current);
+    if (stopArmed) { setStopArmed(false); handleStop(); return; }
+    setStopArmed(true);
+    stopArmTimerRef.current = setTimeout(() => setStopArmed(false), 3_000);
+  }
+
   const phaseConfig = {
     stopping:   { label: t('node.stopping'),            sub: t('node.status.sub.stopping'),    glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
     locked:     { label: t('node.status.locked'),       sub: t('node.status.sub.locked'),      glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
     locking:    { label: t('node.status.locking_wallet'), sub: t('node.status.sub.locking'),   glowColor: 'rgba(120,120,120,0.18)', ringColor: 'border-gray-600',  btnColor: 'border-gray-400 text-gray-300',   iconColor: '#d1d5db' },
-    syncing:    { label: syncingLabel,                   sub: syncingSub[state] ?? t('node.sync.default'), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
+    syncing:    { label: syncingLabel,                   sub: syncSlow ? t('node.sync.slow') : (syncingSub[state] ?? t('node.sync.default')), glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     restarting: { label: t('node.status.restarting'),   sub: t('node.status.sub.restarting'),  glowColor: 'rgba(218,149,38,0.22)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     active:     { label: t('node.status.active'),        sub: formatUptime(startTime),          glowColor: 'rgba(218,149,38,0.28)', ringColor: 'border-amber-500', btnColor: 'border-[#DA9526] text-[#DA9526]', iconColor: '#DA9526' },
     down:       { label: t('node.status.error'),         sub: neutrinoCorrupted ? t('node.status.sub.recover') : t('node.status.sub.retrying'),   glowColor: 'rgba(239,68,68,0.12)',  ringColor: 'border-red-500',   btnColor: 'border-red-500/60 text-red-400',  iconColor: '#f87171' },
@@ -602,6 +646,36 @@ function Node() {
         </div>
       </div>
 
+      {/* Escape hatch — always reachable even though the screen above is
+          pointer-events-none while loading. Lets the user inspect logs or stop
+          a node that is stuck connecting / syncing / errored. */}
+      {showEscapeHatch && (
+        <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-auto flex items-center justify-center gap-[18px] pb-[26px]">
+          {showLogsLink && (
+            <button
+              onClick={() => setShowLogs(true)}
+              className="flex items-center gap-[6px] text-gray-400 hover:text-gray-200 text-[12px] font-label tracking-wide transition-colors"
+            >
+              <ScrollText size={13} strokeWidth={1.8} />
+              {t('node.stop_logs_hint')}
+            </button>
+          )}
+          {showPowerOff && (
+            <button
+              onClick={armOrStop}
+              className={`flex items-center gap-[6px] text-[12px] font-label tracking-wide transition-colors ${stopArmed ? 'text-red-300' : 'text-red-400/80 hover:text-red-300'}`}
+            >
+              <Power size={13} strokeWidth={1.8} />
+              {/* "Locked" means the daemon is fully up — "Power off" reads right.
+                  While starting/syncing the node isn't up yet — "Stop" fits better. */}
+              {isLocked
+                ? (stopArmed ? t('node.power_off.confirm') : t('node.power_off'))
+                : (stopArmed ? t('node.stop.confirm')      : t('node.stop'))}
+            </button>
+          )}
+        </div>
+      )}
+
 
       {/* Unlock bottom sheet */}
       <AnimatePresence>
@@ -690,6 +764,10 @@ function Node() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showLogs && <LogOverlay onClose={() => setShowLogs(false)} />}
+      </AnimatePresence>
+
       <Toaster />
     </div>
   );
@@ -764,6 +842,15 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking, las
   lastBlockAt: number;
 }) {
   const { t } = useTranslation();
+  const { toast } = useToast();
+  async function openDataFolder() {
+    if (!info?.nodeDir) return;
+    try {
+      await RevealNodeFolder(info.nodeDir);
+    } catch (err) {
+      toast({ variant: 'destructive', title: t('node.errors.open_folder_failed'), description: String(err) });
+    }
+  }
   const isSynced = info?.syncedToChain === true;
   const syncPct  = isSynced ? 100
     : info?.mempoolHeight && info?.blockHeight
@@ -824,12 +911,24 @@ function OverviewTab({ info, balance, onStop, onLock, isStopping, isLocking, las
             </InfoRow>
           );
         })()}
-        <InfoRow label={t('overview.pubkey')} last>
+        <InfoRow label={t('overview.pubkey')}>
           {info?.nodePubkey
             ? <div className="flex items-center w-[160px]">
                 <input type="text" readOnly value={info.nodePubkey} className="bg-transparent border-none text-gray-400 text-[11px] font-mono focus:ring-0 outline-none w-full px-0 py-0 cursor-text" />
                 <CopyButton text={info.nodePubkey} />
               </div>
+            : <Skeleton className="h-[9px] w-[120px]" />}
+        </InfoRow>
+        <InfoRow label={t('overview.data_dir')} last>
+          {info?.nodeDir
+            ? <button
+                onClick={openDataFolder}
+                title={t('node.open_folder')}
+                className="flex items-center gap-[6px] text-gray-400 hover:text-[#DA9526] transition-colors max-w-[190px] cursor-pointer"
+              >
+                <span className="text-[11px] font-mono truncate">{shortPath(info.nodeDir)}</span>
+                <FolderOpen size={13} strokeWidth={1.8} className="shrink-0" />
+              </button>
             : <Skeleton className="h-[9px] w-[120px]" />}
         </InfoRow>
       </div>

@@ -18,7 +18,7 @@ Lokinode is a cross-platform desktop app for running and managing a Flokicoin fu
 **Prerequisites:** Go 1.26+, Node.js 20+, pnpm, Wails v2
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.3
+go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
 ```
 
 ```bash
