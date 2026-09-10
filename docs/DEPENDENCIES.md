@@ -10,28 +10,53 @@ Audited 2026-09-10.
   `github.com/wailsapp/wails/v2 v2.12.0`, but CI, the `justfile`, and the README installed
   the `v2.9.3` CLI. All now install `@v2.12.0`. The CLI and library should always match —
   bindings/template generation is version-coupled.
-- **Cleared 13 of 15 `govulncheck`-reachable CVEs.** Bumped `go` toolchain 1.26.5 → 1.26.6
-  (fixes 6 stdlib CVEs: `net/url`, `html/template`, `crypto/tls`, `net/http`,
-  `encoding/xml`, `encoding/asn1`), `google.golang.org/grpc` v1.76.0 → v1.82.1 (2 CVEs),
-  `golang.org/x/net` v0.47.0 → v0.56.0 (1 CVE), `golang.org/x/text` v0.31.0 → v0.39.0
-  (1 CVE), `github.com/opencontainers/runc` v1.2.8 → v1.3.6 (1 CVE), `github.com/jackc/pgx/v5`
-  v5.8.0 → v5.9.2 (the pgx SQL-injection CVE — this also dropped the parallel
-  `github.com/jackc/pgx/v4` finding out of govulncheck's reachable set, even though pgx v4
-  itself has no upstream fix). Also bumped `github.com/docker/docker` v28.3.3 → v28.5.2
-  (doesn't clear the 2 remaining CVEs — see below — but is strictly newer, so kept). Verified
-  with `go build ./...`, `go vet ./...`, `go test ./...`, and a clean re-run of `govulncheck`.
+- **Cleared 11 of 15 `govulncheck`-reachable CVEs**, and made the `security-go` CI job
+  blocking instead of `continue-on-error: true`, with the 4 remaining findings tracked in
+  `.github/govulncheck-allowlist.txt` (CI fails on anything reachable that isn't listed
+  there). Bumped `go` toolchain 1.26.5 → 1.26.6 (fixes 6 stdlib CVEs: `net/url`,
+  `html/template`, `crypto/tls`, `net/http`, `encoding/xml`, `encoding/asn1`),
+  `google.golang.org/grpc` v1.76.0 → v1.82.1 (2 CVEs), `golang.org/x/net` v0.47.0 → v0.56.0
+  (1 CVE), `golang.org/x/text` v0.31.0 → v0.39.0 (1 CVE), `github.com/opencontainers/runc`
+  v1.2.8 → v1.3.6 (1 CVE), `github.com/jackc/pgx/v5` v5.8.0 → v5.9.2 (1 CVE — pgx v4 has the
+  same underlying CVE but no fix; see below). Also bumped `github.com/docker/docker` v28.3.3
+  → v28.5.2 (doesn't clear its 2 CVEs below, but is strictly newer, so kept). Verified with
+  `go build ./...`, `go vet ./...`, `go test ./...`, and a clean re-run of `govulncheck`.
+- **Fixed all 18 `gosec` findings** by adding `#nosec Gxxx -- reason` directives alongside
+  the pre-existing `//nolint:gosec` ones. The standalone `gosec` binary (run directly in CI,
+  not through golangci-lint) doesn't understand `//nolint:`, so the `security-go` job's gosec
+  step had 18 real findings it never even reported — the job failed at the govulncheck step
+  first, every time, so gosec silently never ran. `gosec ./...` now reports 0 issues.
 
-## Backend (Go) — known-unfixable govulncheck findings (2 remaining)
+  > **Gotcha for local testing:** if you run Go commands for this repo from inside a checkout
+  > that sits under a sibling `go.work` (a multi-repo workspace file, e.g. one that also
+  > `use`s a local `../flnd` checkout), Go transparently resolves `github.com/flokiorg/flnd`
+  > et al. against those *local* sibling checkouts instead of the versions pinned in this
+  > repo's `go.mod`/`go.sum`. `govulncheck`'s reachability results in particular will disagree
+  > with CI's fresh, workspace-free checkout. Always verify with `GOWORK=off` (or from outside
+  > the workspace) before trusting a local `govulncheck`/`go build` result against this repo.
 
-`GO-2026-4887` / `GO-2026-4883` (Moby AuthZ plugin bypass / off-by-one privilege check) in
-`github.com/docker/docker`: **`Fixed in: N/A`** even at the latest release (v28.5.2, checked
-2026-09-10) — the bugs live in `dockerd`'s server-side plugin/AuthZ code, which lokinode
-never runs. The module is pulled in only because `flnd`'s `lncfg` package imports
-`docker/docker/api/types/{blkiodev,container,network,...}` for config-struct types at
-`daemon/config.go:7`; there's no dockerd process, no Docker socket access, and no reachable
-code path to the actual vulnerable behavior. Not fixable via version bump — would require
-`flnd` dropping the import or a `replace` to a patched fork, neither of which exists upstream.
-Re-check next audit in case Moby ships a fix.
+## Backend (Go) — known-unfixable govulncheck findings (4, allow-listed in CI)
+
+All four have **`Fixed in: N/A`** upstream (checked 2026-09-10) and are unreachable in
+practice — they're pulled in transitively via `flnd`, not by anything lokinode itself calls.
+Full reasoning lives in `.github/govulncheck-allowlist.txt`, which CI checks against; summary:
+
+- `GO-2026-4887` / `GO-2026-4883` (Moby AuthZ plugin bypass / off-by-one privilege check) in
+  `github.com/docker/docker` — the bugs live in `dockerd`'s server-side plugin/AuthZ code,
+  which lokinode never runs. Pulled in because `flnd`'s `lncfg` package imports
+  `docker/docker/api/types/{blkiodev,container,network,...}` for config-struct types
+  (`daemon/config.go:7`); there's no dockerd process or Docker socket access anywhere in
+  lokinode.
+- `GO-2026-5004` (SQL injection via dollar-quoted string placeholder confusion) in
+  `github.com/jackc/pgx/v4` — `go mod why github.com/jackc/pgx/v4/stdlib` shows it's pulled
+  in by `flnd`'s own optional Postgres channel-DB backend (`flnd/kvdb/sqlbase`). lokinode's
+  own `db/db.go` only ever opens `gorm.io/driver/sqlite`.
+- `GO-2026-4518` (denial of service) in `github.com/jackc/pgproto3/v2` — pgx v4's wire
+  protocol layer; same unreachable-at-runtime path as `GO-2026-5004` above.
+
+Re-check next audit (`GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./...`, see
+the gotcha above) in case any of these ship a fix, and remove the corresponding line from
+`.github/govulncheck-allowlist.txt` if so.
 
 ## Backend (Go) — current, no action
 

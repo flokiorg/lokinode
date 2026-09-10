@@ -17,3 +17,17 @@ GO-2026-4887
 # Moby off-by-one error in plugin privilege validation (github.com/docker/docker).
 # Same root cause and same "Fixed in: N/A" status as GO-2026-4887 above.
 GO-2026-4883
+
+# SQL injection via placeholder confusion with dollar-quoted string literals
+# (github.com/jackc/pgx/v4). Fixed in: N/A (pgx v4 is EOL upstream; only pgx v5,
+# already patched, gets fixes). `go mod why github.com/jackc/pgx/v4/stdlib` shows
+# it's pulled in by flnd's own optional Postgres channel-DB backend
+# (flnd/kvdb/sqlbase), not by lokinode. lokinode's db/db.go only ever opens
+# gorm.io/driver/sqlite; the pgx/v4 stdlib driver's init() registers with
+# database/sql but is never selected at runtime.
+GO-2026-5004
+
+# Denial of service in github.com/jackc/pgproto3/v2. Fixed in: N/A. Same
+# unreachable-at-runtime path as GO-2026-5004 above (pgproto3 is pgx v4's wire
+# protocol layer).
+GO-2026-4518
