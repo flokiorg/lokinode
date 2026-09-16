@@ -3,6 +3,7 @@ import { BrowserOpenURL } from '../../../wailsjs/runtime';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from '@/i18n/context';
 import { useInfo } from '@/hooks/useInfo';
+import { isNewerVersion } from '@/lib/version';
 import { ArrowUpCircle } from 'lucide-react';
 import {
   Dialog,
@@ -18,7 +19,7 @@ export const UpdateAlert = () => {
   const { data: info } = useInfo();
   const [dismissed, setDismissed] = useState(false);
 
-  const needsUpdate = !dismissed && info?.latestVersion && info?.version && info.latestVersion !== info.version;
+  const needsUpdate = !dismissed && isNewerVersion(info?.latestVersion, info?.version);
 
   function dismiss() {
     localStorage.setItem('reminderTime', String(Date.now()));
