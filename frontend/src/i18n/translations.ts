@@ -340,6 +340,8 @@ export const en = {
   // Header
   'header.help':            'Help',
   'header.settings':        'Settings',
+  'header.minimize':        'Minimize',
+  'header.close':           'Close',
   'header.update_available': 'Update available: {{version}}',
 
   'node.errors.restart_failed': 'Restart failed',
@@ -714,6 +716,8 @@ export const ru: Translations = {
 
   'header.help':            'Помощь',
   'header.settings':        'Настройки',
+  'header.minimize':        'Свернуть',
+  'header.close':           'Закрыть',
   'header.update_available': 'Доступно обновление: {{version}}',
 
   'node.errors.restart_failed': 'Ошибка перезапуска',
@@ -1087,6 +1091,8 @@ export const zh: Translations = {
 
   'header.help':            '帮助',
   'header.settings':        '设置',
+  'header.minimize':        '最小化',
+  'header.close':           '关闭',
   'header.update_available': '有可用更新：{{version}}',
 
   'node.errors.restart_failed': '重启失败',
@@ -1460,6 +1466,8 @@ export const es: Translations = {
 
   'header.help':            'Ayuda',
   'header.settings':        'Configuración',
+  'header.minimize':        'Minimizar',
+  'header.close':           'Cerrar',
   'header.update_available': 'Actualización disponible: {{version}}',
 
   'node.errors.restart_failed': 'Error al reiniciar',
@@ -1830,6 +1838,8 @@ export const ja: Translations = {
   'common.continue':   '続ける',
   'header.help':            'ヘルプ',
   'header.settings':        '設定',
+  'header.minimize':        '最小化',
+  'header.close':           '閉じる',
   'header.update_available': 'アップデート利用可能：{{version}}',
   'node.errors.restart_failed': '再起動に失敗しました',
   'node.errors.stop_failed':    '停止に失敗しました',
@@ -2187,6 +2197,8 @@ export const ko: Translations = {
   'common.continue':   '계속',
   'header.help':            '도움말',
   'header.settings':        '설정',
+  'header.minimize':        '최소화',
+  'header.close':           '닫기',
   'header.update_available': '업데이트 사용 가능: {{version}}',
   'node.errors.restart_failed': '재시작 실패',
   'node.errors.stop_failed':    '중지 실패',
