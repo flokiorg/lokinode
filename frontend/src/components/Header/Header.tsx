@@ -1,12 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { HelpCircle, Settings, Globe } from 'lucide-react';
+import { HelpCircle, Settings, Globe, Minus, X } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { BrowserOpenURL } from '../../../wailsjs/runtime';
+import { BrowserOpenURL, Environment, WindowMinimise, WindowHide } from '../../../wailsjs/runtime';
 import { useTranslation } from '@/i18n/context';
 import { useInfo } from '@/hooks/useInfo';
 import { isNewerVersion } from '@/lib/version';
 import { LANGUAGES, Lang } from '@/i18n/translations';
 import logo from '../../assets/header/loki.png';
+
+// Wails' drag-region CSS custom property (default name/value, see
+// pkg/options.Options.CSSDragProperty/CSSDragValue in the Wails v2 source).
+// A no-op everywhere except inside an actual Wails desktop window.
+const DRAG_STYLE = { ['--wails-draggable' as string]: 'drag' } as React.CSSProperties;
 
 function LanguageDropdown() {
   const [open, setOpen] = useState(false);
@@ -61,8 +66,31 @@ export const Header = () => {
   const nodeActive = info?.state === 'ready' || info?.state === 'block' || info?.state === 'tx';
   const needsUpdate = isNewerVersion(info?.latestVersion, info?.version);
 
+  // Windows runs frameless (see lokinode.go) with no native window controls
+  // at all, unlike macOS's hidden-inset titlebar which keeps the native
+  // traffic lights. Only Windows needs a hand-built minimize/close pair.
+  // Outside an actual Wails window (e.g. plain browser dev mode) there is no
+  // window.runtime bridge, and Environment() throws synchronously rather
+  // than rejecting — deferring the call into a promise chain lets .catch
+  // handle that case too, correctly hiding these buttons there.
+  const [platform, setPlatform] = useState('');
+  useEffect(() => {
+    Promise.resolve()
+      .then(() => Environment())
+      .then(env => setPlatform(env.platform))
+      .catch(() => {});
+  }, []);
+  const isWindows = platform === 'windows';
+
   return (
     <div className="absolute top-0 left-0 right-0 z-[60] flex flex-row items-start px-[20px] h-[116px] pointer-events-none">
+      {/* Drag handle: lets the frameless Windows window (and macOS's
+          transparent hidden-inset titlebar, which loses its native drag
+          region once content extends full-size behind it) be moved by
+          grabbing empty header space. A plain sibling behind the logo/button
+          cluster in paint order, so their own pointer-events still win on
+          overlap — no per-element "no-drag" opt-outs needed. */}
+      <div className="absolute inset-0 pointer-events-auto" style={DRAG_STYLE} />
       <img
         src={logo}
         alt="Lokinode"
@@ -70,9 +98,6 @@ export const Header = () => {
         onClick={() => navigate(info?.nodeRunning ? '/node' : '/')}
       />
       <div className="ml-auto flex items-center gap-[12px] pt-[14px] pointer-events-auto">
-        {info?.version && (
-          <span className="text-gray-400 text-[10px] font-mono">{info.version}</span>
-        )}
         <LanguageDropdown />
         <button
           className="relative flex items-center justify-center transition-colors"
@@ -99,6 +124,24 @@ export const Header = () => {
           >
             <Settings size={16} strokeWidth={1.8} />
           </button>
+        )}
+        {isWindows && (
+          <div className="flex items-center gap-[4px] ml-[4px]">
+            <button
+              className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center w-[28px] h-[28px] rounded-md hover:bg-white/[0.06]"
+              onClick={() => WindowMinimise()}
+              title={t('header.minimize')}
+            >
+              <Minus size={14} strokeWidth={2} />
+            </button>
+            <button
+              className="text-gray-400 hover:text-red-400 transition-colors flex items-center justify-center w-[28px] h-[28px] rounded-md hover:bg-white/[0.06]"
+              onClick={() => WindowHide()}
+              title={t('header.close')}
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </div>
         )}
       </div>
     </div>

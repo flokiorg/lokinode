@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	_ "embed"
+	goruntime "runtime"
 	"sync/atomic"
 
 	lokiapi "github.com/flokiorg/lokinode/api"
@@ -14,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -111,7 +113,17 @@ func main() {
 		OnShutdown:    app.Shutdown,
 		Bind:          []interface{}{bindings},
 		DisableResize: true,
-		Frameless:     false,
+		// Frameless removes ALL native window chrome including the close/
+		// minimize buttons on Windows, which is why the frontend Header
+		// grows a hand-built pair when Environment() reports "windows" (see
+		// components/Header/Header.tsx). macOS instead uses Mac.TitleBar
+		// below, which keeps the native traffic-light buttons even with the
+		// title bar strip hidden — going Frameless there too would lose
+		// them, so this stays platform-conditional rather than a global true.
+		Frameless: goruntime.GOOS == "windows",
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
+		},
 	})
 
 	if err != nil {
