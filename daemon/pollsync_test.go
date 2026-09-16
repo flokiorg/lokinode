@@ -117,31 +117,34 @@ checked:
 	}
 }
 
-// TestPollSyncStatus_PersistentErrors_NeverTriggersRestart is the blind
-// spot: GetInfo fails on every call (context deadline exceeded, connection
-// refused, etc. — whatever an unresponsive backend produces). Because
-// pollSyncStatus's `if err != nil { continue }` skips tracker.record
-// entirely, the stuck-timer never advances and the safety net never fires,
-// no matter how long the failures persist.
-func TestPollSyncStatus_PersistentErrors_NeverTriggersRestart(t *testing.T) {
+// TestPollSyncStatus_PersistentErrors_EventuallyTriggersRestart closes the
+// blind spot: GetInfo fails on every call (context deadline exceeded,
+// connection refused, etc. — whatever an unresponsive backend produces).
+// A persistently failing backend is at least as "stuck" as one that
+// responds but reports no progress, so after syncStuckTimeout of nothing
+// but errors, pollSyncStatus must give up and publish StatusDown — this
+// time carrying the underlying error (unlike the "successful but stale"
+// case), since a client that can't even complete GetInfo is a stronger
+// signal that something is genuinely wrong, not just "still offline." A
+// non-nil Err routes the resulting restart through Service.waitForRetry()
+// (see reconnect_test.go) instead of silently auto-looping.
+func TestPollSyncStatus_PersistentErrors_EventuallyTriggersRestart(t *testing.T) {
 	withShortSyncTimers(t, 60*time.Millisecond, 5*time.Millisecond)
 
+	wantErr := errors.New("context deadline exceeded")
 	var calls int32
 	c := newPollTestClient(func(ctx context.Context) (*lnrpc.GetInfoResponse, error) {
 		atomic.AddInt32(&calls, 1)
-		return nil, errors.New("context deadline exceeded")
+		return nil, wantErr
 	})
 
 	done := make(chan struct{})
 	go func() { c.pollSyncStatus(); close(done) }()
 
-	// Run for well past 10x the stuck-timeout used above. If the watchdog
-	// worked the same way it does for the "successful but stale" case, it
-	// would have fired many times over by now.
 	select {
 	case <-done:
-		t.Fatal("pollSyncStatus returned on its own despite GetInfo only ever erroring — the stuck-timer must not have been what caused this; investigate")
-	case <-time.After(600 * time.Millisecond):
+	case <-time.After(2 * time.Second):
+		t.Fatal("pollSyncStatus did not return; persistent GetInfo errors never triggered the stuck-timeout safety net")
 	}
 
 	if calls := atomic.LoadInt32(&calls); calls < 5 {
@@ -150,17 +153,13 @@ func TestPollSyncStatus_PersistentErrors_NeverTriggersRestart(t *testing.T) {
 
 	select {
 	case ev := <-c.health:
-		t.Fatalf("pollSyncStatus published %+v despite GetInfo never once succeeding; expected no health updates at all", ev)
+		if ev.State != StatusDown {
+			t.Fatalf("got state %v, want StatusDown", ev.State)
+		}
+		if !errors.Is(ev.Err, wantErr) {
+			t.Fatalf("got Err %v, want %v — a persistently failing backend should be reported as a real error, not silently swallowed", ev.Err, wantErr)
+		}
 	default:
-		// Expected: persistent GetInfo errors never reach tracker.record, so
-		// no StatusDown (or any other update) is ever published. The daemon
-		// is left silently polling forever with no visible recovery attempt.
-	}
-
-	c.stopSyncPolling()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("pollSyncStatus did not exit after stopSyncPolling")
+		t.Fatal("pollSyncStatus returned but never published a StatusDown update")
 	}
 }

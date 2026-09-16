@@ -33,6 +33,15 @@ const STATUS_LOCKED    = 'locked';
 const STATUS_NO_WALLET = 'noWallet';
 const STATUS_DOWN      = 'down';
 
+// How long the daemon can sit in a boot state ('starting'/'init'/'none'/'')
+// with no forward progress before we stop waiting silently. Covers the
+// daemon's self-triggered stall-restart (daemon/client.go's pollSyncStatus)
+// hanging partway through — that path never sets isRestarting (only the
+// user-initiated Settings restart flow does), so without this the UI would
+// be stuck on the passive "Starting" spinner forever. See Node.test.tsx.
+const RESTART_STALLED_TIMEOUT_MS = 60_000;
+const BOOT_STATES = new Set(['init', 'starting', 'none', '']);
+
 type ActiveTab = 'overview' | 'history' | 'receive' | 'send';
 
 function friendlyDaemonError(raw: string, t: (k: string) => string): string {
@@ -89,6 +98,13 @@ function Node() {
   const [isLocking, setIsLocking] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  // True once the daemon has sat in a boot state with no progress for
+  // longer than RESTART_STALLED_TIMEOUT_MS with nothing else explaining it
+  // (not a deliberate stop/lock, not a tracked Settings restart). Folded
+  // into isDown below so a hung self-triggered restart surfaces the same
+  // Retry-capable screen a real crash would, instead of a silent spinner.
+  const [restartStalled, setRestartStalled] = useState(false);
+  const bootStalledSinceRef = useRef(0);
   const [showLogs, setShowLogs] = useState(false);
   const [stopArmed, setStopArmed] = useState(false);
   const stopArmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,12 +142,14 @@ function Node() {
   const isNoWallet         = state === STATUS_NO_WALLET;
   const neutrinoCorrupted  = !!(event?.neutrinoCorrupted ?? info?.neutrinoCorrupted);
   // Show the "Node Error" screen for any `down` state that the user did not
-  // ask for. A deliberate power-off sets `userStopped` (and navigates home,
-  // where nodeLoader blocks re-mounting /node while nodeRunning is false), so
-  // the only `down` that reaches here unbidden is a genuine startup failure /
-  // crash — which must surface with a Retry button rather than falling through
-  // to a locked, actionless "Connecting to chain…" spinner.
-  const isDown             = state === STATUS_DOWN && !userStopped && !isRetrying && !isRecovering;
+  // ask for, OR for a self-triggered restart that's been stalled too long
+  // (restartStalled — see the effect below). A deliberate power-off sets
+  // `userStopped` (and navigates home, where nodeLoader blocks re-mounting
+  // /node while nodeRunning is false), so the only `down`/stalled state that
+  // reaches here unbidden is a genuine startup failure, crash, or hung
+  // restart — which must surface with a Retry button rather than falling
+  // through to a locked, actionless "Connecting to chain…" spinner.
+  const isDown             = (state === STATUS_DOWN || restartStalled) && !userStopped && !isRetrying && !isRecovering;
 
   // ── Unlock ────────────────────────────────────────────────────────────────────
   async function handleUnlock() {
@@ -221,14 +239,20 @@ function Node() {
     navigate('/', { replace: true });
   }
 
-  // ── Restart (from down)
+  // ── Restart (from down, or from a stalled self-triggered restart)
   async function handleRestart() {
-    if (state !== STATUS_DOWN || restartInFlightRef.current) return;
+    if ((state !== STATUS_DOWN && !restartStalled) || restartInFlightRef.current) return;
     restartInFlightRef.current = true;
     // Immediately hide the error screen and show the spinner — don't wait for
     // the first SSE event. isRetrying is cleared by the event effect as soon
     // as the backend sends any update (including a new 'down' on repeat failure).
     setIsRetrying(true);
+    // Give this fresh attempt a full new stalled-boot window rather than
+    // re-triggering restartStalled the instant the next 'starting' event
+    // (which isRetrying's own clear-on-any-event effect would otherwise let
+    // straight back through to the isDown check) arrives.
+    bootStalledSinceRef.current = 0;
+    setRestartStalled(false);
     try {
       await post('/api/node/restart', {});
     } catch (err) {
@@ -370,6 +394,36 @@ function Node() {
     return () => { if (restartTimerRef.current) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; } };
   }, [isRestarting]);
 
+  // Second, independent safety net: the effect above only covers a
+  // user-initiated Settings restart (isRestarting). The daemon's own
+  // self-triggered stall-restart (daemon/client.go's pollSyncStatus giving
+  // up on a stuck sync) never sets isRestarting, so without this a hung
+  // restart cycle on that path leaves the UI on the passive "Starting"
+  // spinner with no timeout at all. Escalate to the Retry-capable screen
+  // (via restartStalled -> isDown) once a boot state has persisted too long
+  // with nothing else (a deliberate stop/lock/Settings-restart) explaining
+  // it. Resets whenever the daemon leaves boot limbo — including when the
+  // user taps Retry (handleRestart clears it optimistically).
+  useEffect(() => {
+    const inBootLimbo = nodeRunning && !isRestarting && !userStopped && !isStopping && !isLocking &&
+      BOOT_STATES.has(state);
+    if (!inBootLimbo) {
+      bootStalledSinceRef.current = 0;
+      if (restartStalled) setRestartStalled(false);
+      return;
+    }
+    if (bootStalledSinceRef.current === 0) {
+      bootStalledSinceRef.current = Date.now();
+    }
+    const elapsed = Date.now() - bootStalledSinceRef.current;
+    if (elapsed >= RESTART_STALLED_TIMEOUT_MS) {
+      if (!restartStalled) setRestartStalled(true);
+      return;
+    }
+    const timer = setTimeout(() => setRestartStalled(true), RESTART_STALLED_TIMEOUT_MS - elapsed);
+    return () => clearTimeout(timer);
+  }, [state, nodeRunning, isRestarting, userStopped, isStopping, isLocking, restartStalled]);
+
   useEffect(() => {
     if (!isLocked && !isLocking && showUnlock) {
       setShowUnlock(false);
@@ -410,7 +464,7 @@ function Node() {
   // related sync-progress UI; derive it from phaseKey to keep the predicates
   // in lock-step (one source of truth).
   const syncing    = phaseKey === 'syncing';
-  const bootStates = new Set(['init', 'starting', 'none', '']);
+  const bootStates = BOOT_STATES;
   const syncingLabel = isRecovering
     ? t('node.status.recovering')
     : (bootStates.has(state) || isRetrying)

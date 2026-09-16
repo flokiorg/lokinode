@@ -800,6 +800,18 @@ func (c *Client) pollSyncStatus() {
 			synced, recentHeader, blockHeight, bestTs, err := c.IsSynced()
 			if err != nil {
 				log.Trace().Err(err).Msg("sync poll: IsSynced error")
+				if tracker.recordFailure() {
+					log.Warn().
+						Err(err).
+						Dur("stuck_for", tracker.stuckFor()).
+						Msg("sync polling: GetInfo failing past stuck timeout; restarting daemon")
+					// Non-nil Err (unlike the "successful but stale" case below):
+					// a backend that won't even answer GetInfo is a stronger signal
+					// than "still offline", so route this through
+					// Service.waitForRetry() instead of silently auto-looping.
+					c.submitHealth(Update{State: StatusDown, Err: err})
+					return
+				}
 				continue
 			}
 			if synced || recentHeader {
@@ -847,6 +859,19 @@ func (t *syncProgressTracker) record(bestTs int64) bool {
 		t.lastAt = time.Now()
 	}
 	return !t.lastAt.IsZero() && time.Since(t.lastAt) > t.timeout
+}
+
+// recordFailure treats an inability to even query sync state (GetInfo
+// erroring or timing out) the same as observing no progress: a backend that
+// won't answer is at least as stuck as one that answers but doesn't advance.
+// Without this, a persistently failing GetInfo would never reach record()
+// (callers skip it on error) and the stuck-timeout safety net would never
+// fire no matter how long the failures continued.
+func (t *syncProgressTracker) recordFailure() bool {
+	if t.lastAt.IsZero() {
+		t.lastAt = time.Now()
+	}
+	return time.Since(t.lastAt) > t.timeout
 }
 
 // stuckFor returns how long the tracker has been in the stuck state.

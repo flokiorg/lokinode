@@ -79,6 +79,12 @@ vi.mock('../../../wailsjs/go/wails/Bindings', () => ({
   RevealNodeFolder: vi.fn(),
 }));
 
+const mockPost = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/lib/fetcher', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/fetcher')>();
+  return { ...actual, post: (...args: unknown[]) => mockPost(...args) };
+});
+
 // __setMockEvent is injected by the vi.mock factory above; it isn't part of
 // the real module's exported type surface, only the mocked one used here.
 // @ts-expect-error -- test-only export, see vi.mock('@/hooks/useEventStream', ...) above
@@ -105,6 +111,7 @@ beforeEach(() => {
     lastAddress: '',
   });
   useTransitionStore.setState({ isActive: false, label: '', sublabel: '' });
+  mockPost.mockClear();
   vi.useFakeTimers();
 });
 
@@ -115,8 +122,8 @@ afterEach(() => {
 
 // ---- tests ------------------------------------------------------------------
 
-describe('Node: internal stall-restart never reaches the Retry screen', () => {
-  it('stays on the passive Starting spinner through a self-triggered stall-restart, with no auto-recovery after 65s', () => {
+describe('Node: internal stall-restart eventually escalates to the Retry screen', () => {
+  it('stays on the passive Starting spinner briefly, then escalates to a working Retry screen after the stalled-boot timeout', () => {
     renderNode();
 
     // 1) Node is mid-sync (the state the staleness watchdog would have put
@@ -150,16 +157,29 @@ describe('Node: internal stall-restart never reaches the Retry screen', () => {
     expect(screen.getByText('Starting')).toBeInTheDocument();
 
     // 4) Nothing else ever arrives (e.g. the restart's own
-    //    acquireSignalInterceptor/exec sequence hangs). isRestarting was
-    //    never set (only Settings' restart flow sets it), so the 60s
-    //    "stuck restart" safety net (Node.tsx ~362-371) never engages.
+    //    acquireSignalInterceptor/exec sequence hangs). isRestarting stays
+    //    false throughout — its own safety net (Node.tsx ~362-371) covers
+    //    only the user-initiated Settings restart flow, not this path — but
+    //    a dedicated stalled-boot timer independent of isRestarting must
+    //    still promote the screen to the Retry-capable "Node Error" state
+    //    once it's been sitting in a boot state too long with no progress.
     act(() => {
       vi.advanceTimersByTime(65_000);
     });
 
     expect(useNodeSessionStore.getState().isRestarting).toBe(false);
-    expect(screen.getByText('Starting')).toBeInTheDocument();
-    expect(screen.queryByText('Node Error')).not.toBeInTheDocument();
+    expect(screen.getByText('Node Error')).toBeInTheDocument();
+    expect(screen.queryByText('Starting')).not.toBeInTheDocument();
+
+    // 5) The Retry action must actually be wired to the real restart
+    //    endpoint, not just cosmetic — clicking it should call
+    //    POST /api/node/restart the same way a real crash's Retry does.
+    const retryButton = screen.getAllByRole('button').find((b) => b.textContent === '');
+    expect(retryButton).toBeTruthy();
+    act(() => {
+      retryButton!.click();
+    });
+    expect(mockPost).toHaveBeenCalledWith('/api/node/restart', {});
   });
 });
 
@@ -190,5 +210,53 @@ describe('Node: a genuine crash (control case) does reach the Retry screen', () 
     // off 'down', by design (waitForRetry blocks for real, proven in
     // daemon/reconnect_test.go).
     expect(screen.getByText('Node Error')).toBeInTheDocument();
+  });
+});
+
+describe('Node: the stalled-boot escalation does not fire for legitimate long operations', () => {
+  it('never shows Node Error for a genuinely slow-but-progressing initial sync', () => {
+    renderNode();
+
+    // A real initial block download can easily take well over
+    // RESTART_STALLED_TIMEOUT_MS (60s). BOOT_STATES only covers
+    // 'starting'/'init'/'none'/'' — 'syncing' with rising blockHeight must
+    // never be mistaken for a hung restart.
+    act(() => {
+      __setMockEvent({ state: 'syncing', nodeRunning: true, blockHeight: 100 });
+    });
+    act(() => {
+      vi.advanceTimersByTime(65_000);
+    });
+    expect(screen.queryByText('Node Error')).not.toBeInTheDocument();
+
+    act(() => {
+      __setMockEvent({ state: 'syncing', nodeRunning: true, blockHeight: 5000 });
+    });
+    act(() => {
+      vi.advanceTimersByTime(65_000);
+    });
+    expect(screen.queryByText('Node Error')).not.toBeInTheDocument();
+    expect(screen.getByText('Syncing')).toBeInTheDocument();
+  });
+
+  it('never shows Node Error for a normal boot that settles before the timeout', () => {
+    renderNode();
+
+    act(() => {
+      __setMockEvent({ state: 'starting', nodeRunning: true });
+    });
+    act(() => {
+      vi.advanceTimersByTime(30_000); // well under RESTART_STALLED_TIMEOUT_MS
+    });
+    expect(screen.queryByText('Node Error')).not.toBeInTheDocument();
+
+    act(() => {
+      __setMockEvent({ state: 'locked', nodeRunning: true });
+    });
+    act(() => {
+      vi.advanceTimersByTime(65_000);
+    });
+    expect(screen.queryByText('Node Error')).not.toBeInTheDocument();
+    expect(screen.getByText('Locked')).toBeInTheDocument();
   });
 });
