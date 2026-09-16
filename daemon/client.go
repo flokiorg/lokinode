@@ -45,11 +45,20 @@ const (
 	transactionPageSize     = 200
 	transactionsCacheTTL    = 5 * time.Minute
 	recentHeaderThreshold   = 5 * time.Minute
-	syncStuckTimeout        = 3 * time.Minute
 	defaultRecoveryWindow   = 2500
 
 	localhostIP           = "127.0.0.1"
 	publicDNSCheckAddress = "8.8.8.8:80"
+)
+
+// syncStuckTimeout and syncPollInterval are vars (not consts) purely so
+// tests can shrink them and observe pollSyncStatus's real behavior in
+// milliseconds instead of minutes. Production code never assigns to them —
+// values are identical to the previous consts, so this is not a behavior
+// change.
+var (
+	syncStuckTimeout = 3 * time.Minute
+	syncPollInterval = 5 * time.Second
 )
 
 type txCache struct {
@@ -767,7 +776,7 @@ func (c *Client) pollSyncStatus() {
 
 	log.Info().Msg("sync polling started")
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(syncPollInterval)
 	defer ticker.Stop()
 	defer func() {
 		c.mu.Lock()
