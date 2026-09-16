@@ -5,10 +5,8 @@ import (
 	crypto_rand "crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +15,6 @@ import (
 	"github.com/flokiorg/lokinode/daemon"
 	"github.com/flokiorg/lokinode/db"
 	lokitray "github.com/flokiorg/lokinode/tray"
-	"github.com/tidwall/gjson"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gorm.io/gorm"
 )
@@ -31,6 +28,7 @@ const instanceLockPort = "51016"
 type App struct {
 	ctx           context.Context
 	wailsJSON     string
+	version       string
 	apiToken      string
 	apiServerPort int
 
@@ -53,8 +51,9 @@ type App struct {
 var errNoProfile = errors.New("no node profile configured")
 
 // New creates a new App instance. wailsJSON is the embedded wails.json content
-// from the root package (go:embed cannot cross directory boundaries).
-func New(wailsJSON string) *App {
+// and version is the embedded VERSION file content, both from the root
+// package (go:embed cannot cross directory boundaries).
+func New(wailsJSON, version string) *App {
 	b := make([]byte, 32)
 	if _, err := crypto_rand.Read(b); err != nil {
 		// The OS CSPRNG is unavailable - continuing would mean serving the
@@ -62,7 +61,7 @@ func New(wailsJSON string) *App {
 		panic("failed to generate API token: " + err.Error())
 	}
 	token := hex.EncodeToString(b)
-	return &App{wailsJSON: wailsJSON, apiToken: token}
+	return &App{wailsJSON: wailsJSON, version: strings.TrimSpace(version), apiToken: token}
 }
 
 // Context returns the application context.
@@ -153,38 +152,16 @@ func TrySignalRunningInstance() bool {
 	return true
 }
 
-// GetVersion returns the current app version from wails.json.
+// GetVersion returns the app's own version identity, e.g. "v0.1.7-rc1".
+// Sourced from the embedded VERSION file (the release tag), NOT
+// wails.json's productVersion: that field is native OS packaging metadata
+// (macOS Info.plist / Windows exe resource) embedded at build time and is
+// kept plain-numeric on purpose so an RC's "-rcN" suffix never has to flow
+// through native version-string parsing. VERSION is a plain text file with
+// no such constraint, so it's the correct source for the identity string
+// actually shown to users and compared against GetGithubLatestVersion.
 func (a *App) GetVersion() string {
-	version := gjson.Get(a.wailsJSON, "info.productVersion")
-	return "v" + version.String()
-}
-
-// VersionCtrl holds version comparison data for update checks.
-type VersionCtrl struct {
-	CurrentVersion string
-	LatestVersion  string
-	NeedUpdate     bool
-}
-
-// FetchVersionInfo fetches the latest GitHub release and compares with current.
-func (a *App) FetchVersionInfo() (versionCtrl VersionCtrl, err error) {
-	versionCtrl.CurrentVersion = a.GetVersion()
-	versionCtrl.LatestVersion, err = GetGithubLatestVersion()
-	if err != nil {
-		return
-	}
-	latestNum, err := strconv.ParseInt(strings.ReplaceAll(strings.TrimPrefix(versionCtrl.LatestVersion, "v"), ".", ""), 10, 64)
-	if err != nil {
-		return versionCtrl, fmt.Errorf("latest version[%s] is illegal", versionCtrl.LatestVersion)
-	}
-	currentNum, err := strconv.ParseInt(strings.ReplaceAll(strings.TrimPrefix(versionCtrl.CurrentVersion, "v"), ".", ""), 10, 64)
-	if err != nil {
-		return versionCtrl, fmt.Errorf("current version[%s] is illegal", versionCtrl.CurrentVersion)
-	}
-	if latestNum > currentNum {
-		versionCtrl.NeedUpdate = true
-	}
-	return
+	return a.version
 }
 
 // Service returns the running daemon service (nil if node not started yet).
@@ -231,4 +208,3 @@ func (a *App) GetLogDir() string {
 	}
 	return filepath.Join(a.GetDefaultNodeDir(), "logs", "flokicoin", "main")
 }
-

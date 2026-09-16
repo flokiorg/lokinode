@@ -84,4 +84,30 @@ describe('isNewerVersion', () => {
     expect(isNewerVersion('v1.1', 'v1.0')).toBe(true);
     expect(isNewerVersion('v1.0', 'v1.1')).toBe(false);
   });
+
+  // --- prerelease / RC builds ---
+  // A running RC build (e.g. "v0.1.7-rc1") must never be flagged as needing
+  // an "update" to an older stable release (e.g. "v0.1.6") just because the
+  // strings differ — the numeric core (0.1.7 > 0.1.6) is what matters.
+  it('does not flag an RC build as needing "update" to an older stable release', () => {
+    expect(isNewerVersion('v0.1.6', 'v0.1.7-rc1')).toBe(false);
+  });
+
+  it('does not flag two different prereleases of the same version against each other', () => {
+    expect(isNewerVersion('v0.1.7-rc2', 'v0.1.7-rc1')).toBe(false);
+    expect(isNewerVersion('v0.1.7-rc1', 'v0.1.7-rc2')).toBe(false);
+  });
+
+  it('flags a real update when the stable release of the running RC ships', () => {
+    expect(isNewerVersion('v0.1.7', 'v0.1.7-rc1')).toBe(true);
+  });
+
+  it('flags a real update when a genuinely newer version ships while on an RC', () => {
+    expect(isNewerVersion('v0.1.8', 'v0.1.7-rc1')).toBe(true);
+    expect(isNewerVersion('v0.2.0-rc1', 'v0.1.7-rc1')).toBe(true);
+  });
+
+  it('does not flag a stable release as needing "update" to its own RC', () => {
+    expect(isNewerVersion('v0.1.7-rc1', 'v0.1.7')).toBe(false);
+  });
 });

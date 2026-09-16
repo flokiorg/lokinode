@@ -25,6 +25,9 @@ var assets embed.FS
 //go:embed wails.json
 var wailsJSON string
 
+//go:embed VERSION
+var appVersion string
+
 //go:embed build/TrayIcon.svg
 var trayIconSVG []byte
 
@@ -53,7 +56,7 @@ func main() {
 	}
 
 	lokilog.Init()
-	app := lokiapp.New(wailsJSON)
+	app := lokiapp.New(wailsJSON, appVersion)
 	// bindings is the narrow Wails JS bridge — only OS-level dialog operations.
 	// Sensitive data methods (GenSeed, Unlock, macaroon paths, etc.) are NOT
 	// exposed here; they go through the Echo HTTP handler instead.
