@@ -21,6 +21,12 @@ Audited 2026-09-10.
   same underlying CVE but no fix; see below). Also bumped `github.com/docker/docker` v28.3.3
   → v28.5.2 (doesn't clear its 2 CVEs below, but is strictly newer, so kept). Verified with
   `go build ./...`, `go vet ./...`, `go test ./...`, and a clean re-run of `govulncheck`.
+- **2026-09-16: bumped `google.golang.org/grpc` v1.82.1 → v1.83.2** (clears newly-published
+  `GO-2026-6348` and `GO-2026-6443`, both reachable via `daemon`'s own `ClientConn`
+  lifecycle code, not just a transitive import). `go mod tidy` pulled in matching transitive
+  bumps (`golang.org/x/net`, `x/sys`, `x/text`, `otel`, `genproto`). Verified with
+  `GOWORK=off go build/vet/test ./daemon/... ./api/... ./wails/...` (race included) and a
+  clean re-run of `govulncheck` (see the gotcha above — run it `GOWORK=off`).
 - **Fixed all 18 `gosec` findings** by adding `#nosec Gxxx -- reason` directives alongside
   the pre-existing `//nolint:gosec` ones. The standalone `gosec` binary (run directly in CI,
   not through golangci-lint) doesn't understand `//nolint:`, so the `security-go` job's gosec

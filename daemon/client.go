@@ -45,11 +45,20 @@ const (
 	transactionPageSize     = 200
 	transactionsCacheTTL    = 5 * time.Minute
 	recentHeaderThreshold   = 5 * time.Minute
-	syncStuckTimeout        = 3 * time.Minute
 	defaultRecoveryWindow   = 2500
 
 	localhostIP           = "127.0.0.1"
 	publicDNSCheckAddress = "8.8.8.8:80"
+)
+
+// syncStuckTimeout and syncPollInterval are vars (not consts) purely so
+// tests can shrink them and observe pollSyncStatus's real behavior in
+// milliseconds instead of minutes. Production code never assigns to them —
+// values are identical to the previous consts, so this is not a behavior
+// change.
+var (
+	syncStuckTimeout = 3 * time.Minute
+	syncPollInterval = 5 * time.Second
 )
 
 type txCache struct {
@@ -767,7 +776,7 @@ func (c *Client) pollSyncStatus() {
 
 	log.Info().Msg("sync polling started")
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(syncPollInterval)
 	defer ticker.Stop()
 	defer func() {
 		c.mu.Lock()
@@ -791,6 +800,18 @@ func (c *Client) pollSyncStatus() {
 			synced, recentHeader, blockHeight, bestTs, err := c.IsSynced()
 			if err != nil {
 				log.Trace().Err(err).Msg("sync poll: IsSynced error")
+				if tracker.recordFailure() {
+					log.Warn().
+						Err(err).
+						Dur("stuck_for", tracker.stuckFor()).
+						Msg("sync polling: GetInfo failing past stuck timeout; restarting daemon")
+					// Non-nil Err (unlike the "successful but stale" case below):
+					// a backend that won't even answer GetInfo is a stronger signal
+					// than "still offline", so route this through
+					// Service.waitForRetry() instead of silently auto-looping.
+					c.submitHealth(Update{State: StatusDown, Err: err})
+					return
+				}
 				continue
 			}
 			if synced || recentHeader {
@@ -838,6 +859,19 @@ func (t *syncProgressTracker) record(bestTs int64) bool {
 		t.lastAt = time.Now()
 	}
 	return !t.lastAt.IsZero() && time.Since(t.lastAt) > t.timeout
+}
+
+// recordFailure treats an inability to even query sync state (GetInfo
+// erroring or timing out) the same as observing no progress: a backend that
+// won't answer is at least as stuck as one that answers but doesn't advance.
+// Without this, a persistently failing GetInfo would never reach record()
+// (callers skip it on error) and the stuck-timeout safety net would never
+// fire no matter how long the failures continued.
+func (t *syncProgressTracker) recordFailure() bool {
+	if t.lastAt.IsZero() {
+		t.lastAt = time.Now()
+	}
+	return time.Since(t.lastAt) > t.timeout
 }
 
 // stuckFor returns how long the tracker has been in the stuck state.
