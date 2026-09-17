@@ -63,7 +63,7 @@ export const Header = () => {
   const location = useLocation();
   const isOnboarding = location.pathname === '/';
   const isSettingsPage = location.pathname === '/settings';
-  const nodeActive = info?.state === 'ready' || info?.state === 'block' || info?.state === 'tx';
+  const nodeActive = !!info?.nodeRunning;
   const needsUpdate = isNewerVersion(info?.latestVersion, info?.version);
 
   // Windows runs frameless (see lokinode.go) with no native window controls
