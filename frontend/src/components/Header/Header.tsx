@@ -118,7 +118,7 @@ export const Header = () => {
         </button>
         {(isSettingsPage || nodeActive) && (
           <button
-            className="text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
+            className="relative z-10 text-gray-400 hover:text-gray-200 transition-colors flex items-center justify-center"
             onClick={() => navigate('/settings')}
             title={t('header.settings')}
           >
