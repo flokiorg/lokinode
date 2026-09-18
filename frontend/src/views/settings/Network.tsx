@@ -94,14 +94,18 @@ function CopyRow({ label, value, last }: { label: string; value: string; last?: 
 // ── Credential row — hex / path pill toggle ───────────────────────────────────
 
 function CredentialRow({
-  label, hexValue, pathValue, loading,
+  label, hexValue, pathValue, loading, hexReady = true,
 }: {
-  label: string; hexValue: string; pathValue: string; loading: boolean;
+  label: string; hexValue: string; pathValue: string; loading: boolean; hexReady?: boolean;
 }) {
   const { t } = useTranslation();
   const [mode, setMode]   = useState<'hex' | 'path'>('hex');
   const [copied, setCopied] = useState(false);
   const display = mode === 'hex' ? hexValue : pathValue;
+  // The path is filesystem-derived and always known; the hex value requires
+  // an unlocked, running wallet (see NetworkView's credsHexReady) — show that
+  // distinction instead of a bare "—" that looks like a genuinely empty field.
+  const hexUnavailable = mode === 'hex' && !hexReady;
 
   function copy() {
     if (!display) return;
@@ -121,13 +125,17 @@ function CredentialRow({
             <div className="w-px h-[10px] bg-white/[0.06]" />
             <button onClick={() => setMode('path')} className={`px-[7px] py-[4px] transition-colors ${mode === 'path' ? 'bg-[#DA9526]/15 text-[#DA9526]' : 'text-gray-600 hover:text-gray-400'}`}>PATH</button>
           </div>
-          <button onClick={copy} disabled={!display} className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30" title={t('common.copy')}>
+          <button onClick={copy} disabled={!display || hexUnavailable} className="text-gray-400 hover:text-[#DA9526] transition-colors disabled:opacity-30" title={t('common.copy')}>
             {copied ? <Check size={13} strokeWidth={2.5} className="text-[#DA9526]" /> : <Copy size={13} strokeWidth={2} />}
           </button>
         </div>
       </div>
       <div className="text-[10px] font-mono text-gray-400 break-all leading-[1.65] max-h-[64px] overflow-y-auto">
-        {loading ? <Skeleton className="h-[10px] w-full" /> : display || <span className="text-gray-600">—</span>}
+        {loading
+          ? <Skeleton className="h-[10px] w-full" />
+          : hexUnavailable
+          ? <span className="text-gray-600 italic">{t('network.hex_locked')}</span>
+          : display || <span className="text-gray-600">—</span>}
       </div>
     </div>
   );
@@ -315,6 +323,11 @@ export default function Network({ info }: { info: InfoResponse | undefined }) {
   }
 
   const credsLoading = info === undefined;
+  // MacaroonHex/TLSCertHex are only populated by the backend once the wallet
+  // is unlocked (see api/info.go's walletReady gate) — locked/starting states
+  // always report an empty hex value, which isn't the same as "not loading".
+  const credsHexReady = !!info?.nodeRunning &&
+    ['ready', 'syncing', 'scanning', 'block', 'tx'].includes(info?.state ?? '');
   const loading = form === null;
 
   return (
@@ -441,12 +454,14 @@ export default function Network({ info }: { info: InfoResponse | undefined }) {
         hexValue={info?.macaroonHex   ?? ''}
         pathValue={info?.macaroonPath ?? ''}
         loading={credsLoading}
+        hexReady={credsHexReady}
       />
       <CredentialRow
         label={t('network.tls')}
         hexValue={info?.tlsCertHex   ?? ''}
         pathValue={info?.tlsCertPath ?? ''}
         loading={credsLoading}
+        hexReady={credsHexReady}
       />
 
     </div>
