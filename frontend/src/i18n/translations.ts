@@ -207,6 +207,7 @@ export const en = {
   'network.data_dir':          'Node Environment',
   'network.macaroon':          'Admin Macaroon',
   'network.tls':               'TLS Certificate',
+  'network.hex_locked':        'Available once unlocked',
 
 
   // Receive
@@ -608,6 +609,7 @@ export const ru: Translations = {
   'network.data_dir':        'Среда узла',
   'network.macaroon':        'Macaroon администратора',
   'network.tls':             'TLS-сертификат',
+  'network.hex_locked':      'Доступно после разблокировки',
   'receive.title':    'Получить FLC',
   'receive.new_addr': 'Сгенерировать новый адрес',
   'receive.copied':   'Скопировано',
@@ -983,6 +985,7 @@ export const zh: Translations = {
   'network.data_dir':        '节点环境',
   'network.macaroon':        '管理员 Macaroon',
   'network.tls':             'TLS 证书',
+  'network.hex_locked':      '解锁后可用',
   'receive.title':    '收款 FLC',
   'receive.new_addr': '生成新地址',
   'receive.copied':   '已复制',
@@ -1358,6 +1361,7 @@ export const es: Translations = {
   'network.data_dir':        'Directorio de datos',
   'network.macaroon':        'Macaroon administrador',
   'network.tls':             'Certificado TLS',
+  'network.hex_locked':      'Disponible tras desbloquear',
   'receive.title':    'Recibir FLC',
   'receive.new_addr': 'Generar nueva dirección',
   'receive.copied':   'Copiado',
@@ -1732,6 +1736,7 @@ export const ja: Translations = {
   'network.data_dir':          'ノード環境',
   'network.macaroon':          '管理者Macaroon',
   'network.tls':               'TLS証明書',
+  'network.hex_locked':        'ロック解除後に利用可能',
   'receive.title':   'FLCを受け取る',
   'receive.new_addr':'新しいアドレスを生成',
   'receive.copied':  'コピーしました',
@@ -2091,6 +2096,7 @@ export const ko: Translations = {
   'network.data_dir':          '노드 환경',
   'network.macaroon':          '관리자 Macaroon',
   'network.tls':               'TLS 인증서',
+  'network.hex_locked':        '잠금 해제 후 사용 가능',
   'receive.title':   'FLC 받기',
   'receive.new_addr':'새 주소 생성',
   'receive.copied':  '복사됨',
