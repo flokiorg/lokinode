@@ -38,35 +38,58 @@ jobs:
             console.log(`build-all.yaml Run ID: ${runId}`);
             core.setOutput('run_id', runId);
 
+      # VERSION stays the build-time input: it is go:embed-ed into the binary
+      # (lokinode.go) and wails/http_test.go asserts the reported version keeps
+      # its "v" prefix. CHANGELOG.md is the source of the release notes, and the
+      # next step asserts the two agree so neither can be bumped alone.
       - name: Read Version
         id: version
         shell: bash
         run: |
           if [ ! -f VERSION ]; then
-            echo "Error: VERSION file not found"
+            echo "::error::VERSION file not found"
             exit 1
           fi
           TAG=$(cat VERSION | tr -d '[:space:]')
           if [ -z "$TAG" ]; then
-            echo "Error: VERSION file is empty"
+            echo "::error::VERSION file is empty"
             exit 1
           fi
           echo "TAG=$TAG" >> $GITHUB_ENV
 
-      - name: Check Release Note
-        id: check_note
+      - name: Resolve release notes from CHANGELOG.md
         shell: bash
         run: |
-          if [ -f "releases/${{ env.TAG }}.md" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release note found: releases/${{ env.TAG }}.md"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "No release note found for ${{ env.TAG }}, skipping release."
+          TOP_HEADING=$(grep -m1 -oP '^## \[\K[^\]]+' CHANGELOG.md || true)
+          if [ "$TOP_HEADING" = "Unreleased" ]; then
+            echo "::error::Topmost CHANGELOG.md heading is '## [Unreleased]' - rename it to the version being released (e.g. '## [${{ env.TAG }}]') and commit that before running this workflow"
+            exit 1
+          fi
+          if [ "$TOP_HEADING" != "${{ env.TAG }}" ]; then
+            echo "::error::VERSION says '${{ env.TAG }}' but the topmost CHANGELOG.md heading is '$TOP_HEADING'. Bump both together."
+            exit 1
           fi
 
+          awk -v ver="${{ env.TAG }}" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/notes.raw
+
+          # Trim leading/trailing blank lines.
+          sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}' /tmp/notes.raw > /tmp/release-notes.md
+
+          # Previously a missing note meant every later step was skipped and the
+          # job still reported success, publishing nothing. Fail loudly instead.
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no content under '## [${{ env.TAG }}]'"
+            exit 1
+          fi
+
+          echo "Releasing ${{ env.TAG }} with notes:"
+          cat /tmp/release-notes.md
+
       - name: Download Build Artifacts
-        if: steps.check_note.outputs.exists == 'true'
         uses: actions/download-artifact@v4
         with:
           run-id: ${{ steps.get_run_ids.outputs.run_id }}
@@ -74,11 +97,31 @@ jobs:
           path: artifacts
 
       - name: Display Artifacts
-        if: steps.check_note.outputs.exists == 'true'
         run: ls -R artifacts
 
+      # This job harvests artifacts from the most recent successful build-all
+      # run rather than building them, so an older run would otherwise be
+      # published silently under the new tag. Every asset carries the version in
+      # its filename, which makes the mismatch cheap to detect.
+      - name: Verify artifacts match the version being released
+        shell: bash
+        run: |
+          FOUND=$(find artifacts -type f | wc -l)
+          if [ "$FOUND" -eq 0 ]; then
+            echo "::error::no artifacts were downloaded from the build-all run"
+            exit 1
+          fi
+
+          MISMATCHED=$(find artifacts -type f ! -name "*${{ env.TAG }}*" || true)
+          if [ -n "$MISMATCHED" ]; then
+            echo "::error::the latest successful build-all run produced artifacts that do not carry ${{ env.TAG }} in their names - it predates this version. Re-run build-all.yaml, then this workflow."
+            echo "$MISMATCHED"
+            exit 1
+          fi
+
+          echo "All $FOUND artifacts carry ${{ env.TAG }}."
+
       - name: Delete Existing Tag
-        if: steps.check_note.outputs.exists == 'true'
         continue-on-error: true
         uses: actions/github-script@v7
         with:
@@ -99,7 +142,6 @@ jobs:
             }
 
       - name: Delete Existing Release
-        if: steps.check_note.outputs.exists == 'true'
         continue-on-error: true
         uses: actions/github-script@v7
         with:
@@ -125,12 +167,11 @@ jobs:
             }
 
       - name: Create Release
-        if: steps.check_note.outputs.exists == 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.TAG }}
           name: Release ${{ env.TAG }}
-          body_path: releases/${{ env.TAG }}.md
+          body_path: /tmp/release-notes.md
           files: artifacts/**/*
           fail_on_unmatched_files: false
-          prerelease: ${{ contains(env.TAG, 'alpha') || contains(env.TAG, 'beta') || contains(env.TAG, 'rc') }}
+          prerelease: ${{ contains(env.TAG, '-') }}
