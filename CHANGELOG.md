@@ -1,5 +1,38 @@
 # Changelog
 
+## [v0.1.8-rc1]
+
+⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
+specifically testing the dependency update below, stay on `v0.1.7`.
+
+Moves every Flokicoin library to its current release. These are large jumps —
+the node, wallet and Lightning layers all move together — so this is a
+candidate rather than a stable build even though nothing needed code changes.
+
+### Changed
+
+- `go-flokicoin` 0.25.13-alpha -> **0.26.3**
+- `flnd` 0.1.21-beta -> **0.2.3**
+- `walletd` 0.1.8-beta -> **0.2.2** (indirect)
+- `flokicoin-neutrino` 0.16.6-beta -> **0.17.2** (indirect)
+- `lightning-onion` 1.0.1-alpha -> **1.0.4** (indirect)
+- Built with Go 1.26.8, up from the previous toolchain. The 1.26.5 standard
+  library carried four reachable vulnerabilities (GO-2026-6218, GO-2026-6090,
+  GO-2026-5972, GO-2026-5026), all fixed in 1.26.6.
+
+Those library versions also carry the version-reporting fix: `lokid` and `flnd`
+previously reported versions unrelated to what was released.
+
+### Please test
+
+- Start the node and let it sync from cold, then confirm the wallet unlocks and
+  stays unlocked.
+- Open a Lightning channel and settle a payment, since the Lightning stack
+  (`flnd`, `lightning-onion`) moved a full minor version.
+- Confirm Settings -> About reports `v0.1.8-rc1`.
+
+Report back on the pull request or the issue tracker.
+
 ## [v0.1.7]
 
 First stable build of the 0.1.7 line, consolidating everything from `v0.1.7-rc1`
