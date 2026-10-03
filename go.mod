@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/flokiorg/flnd v0.2.3
+	github.com/flokiorg/flnd v0.2.4
 	github.com/flokiorg/go-flokicoin v0.26.3
 	github.com/getlantern/systray v1.2.2
 	github.com/godbus/dbus/v5 v5.1.0
@@ -18,7 +18,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.12.0
 	golang.org/x/image v0.12.0
 	golang.org/x/sys v0.48.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.83.2
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )
