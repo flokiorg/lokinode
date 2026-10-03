@@ -41,28 +41,28 @@ Audited 2026-09-10.
   > with CI's fresh, workspace-free checkout. Always verify with `GOWORK=off` (or from outside
   > the workspace) before trusting a local `govulncheck`/`go build` result against this repo.
 
-## Backend (Go) — known-unfixable govulncheck findings (4, allow-listed in CI)
+## Backend (Go) — govulncheck findings: none
 
-All four have **`Fixed in: N/A`** upstream (checked 2026-09-10) and are unreachable in
-practice — they're pulled in transitively via `flnd`, not by anything lokinode itself calls.
-Full reasoning lives in `.github/govulncheck-allowlist.txt`, which CI checks against; summary:
+As of 2026-10-03 `govulncheck ./...` reports **no reachable findings**, and
+`.github/govulncheck-allowlist.txt` is empty.
 
-- `GO-2026-4887` / `GO-2026-4883` (Moby AuthZ plugin bypass / off-by-one privilege check) in
-  `github.com/docker/docker` — the bugs live in `dockerd`'s server-side plugin/AuthZ code,
-  which lokinode never runs. Pulled in because `flnd`'s `lncfg` package imports
-  `docker/docker/api/types/{blkiodev,container,network,...}` for config-struct types
-  (`daemon/config.go:7`); there's no dockerd process or Docker socket access anywhere in
-  lokinode.
-- `GO-2026-5004` (SQL injection via dollar-quoted string placeholder confusion) in
-  `github.com/jackc/pgx/v4` — `go mod why github.com/jackc/pgx/v4/stdlib` shows it's pulled
-  in by `flnd`'s own optional Postgres channel-DB backend (`flnd/kvdb/sqlbase`). lokinode's
-  own `db/db.go` only ever opens `gorm.io/driver/sqlite`.
-- `GO-2026-4518` (denial of service) in `github.com/jackc/pgproto3/v2` — pgx v4's wire
-  protocol layer; same unreachable-at-runtime path as `GO-2026-5004` above.
+Four findings used to be allow-listed here: `GO-2026-4887` / `GO-2026-4883`
+(`github.com/docker/docker`) and `GO-2026-5004` / `GO-2026-4518`
+(`github.com/jackc/pgx/v4` and its wire layer). All four were accepted on the
+grounds that upstream reported `Fixed in: N/A`. The dependency updates in
+v0.1.8-rc1 -- go-flokicoin to 0.26.3, flnd to 0.2.4, and the transitive bumps
+that came with them -- made every one of them unreachable, so the entries were
+removed.
 
-Re-check next audit (`GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./...`, see
-the gotcha above) in case any of these ship a fix, and remove the corresponding line from
-`.github/govulncheck-allowlist.txt` if so.
+Note `docker/docker` is still *in* the module graph here, reached via
+`golang-migrate/migrate/v4/database/pgx/v5` -> `dhui/dktest`. Bumping
+`docker/cli` to 29.x does **not** remove it, which is what worked in `flnd` and
+`lokihub` where the only path ran through `docker/cli`. It does not need
+removing: nothing reachable depends on it.
+
+Re-check with `GOWORK=off go run golang.org/x/vuln/cmd/govulncheck@latest ./...`
+after building `frontend/dist`, which the Go packages embed.
+
 
 ## Backend (Go) — current, no action
 
