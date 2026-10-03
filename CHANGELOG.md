@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.1.7]
+
+First stable build of the 0.1.7 line, consolidating everything from `v0.1.7-rc1`
+through `v0.1.7-rc4`.
+
+### Bug Fixes
+
+- Fixed the node silently relocking the wallet, or getting stuck on "Connecting to
+  chain..." indefinitely with no way back except a manual stop + unlock, after the host
+  machine's internet connection dropped and came back.
+- Fixed a false "new version available" prompt that pointed at an older release.
+- Fixed the Settings gear icon staying hidden while the node was starting up or syncing.
+  It now shows as soon as the node service is running, instead of waiting for a full sync.
+- Fixed the Settings gear sometimes not responding to clicks, occluded by an overlapping
+  header element.
+- The Macaroon/TLS-certificate hex value in Settings -> Network now shows "Available once
+  unlocked" while the wallet is locked or starting, instead of a bare "--" that looked
+  like a genuinely empty field.
+
+### Changes
+
+- The version number is no longer shown on the home page / top bar. It is still under
+  Settings -> About.
+- **macOS**: the title bar is hidden and content fills the whole window, matching modern
+  desktop apps -- the native close/minimize/zoom buttons stay in the top-left corner.
+- **Windows**: native window chrome is replaced with a custom minimize/close button pair
+  in the top-right corner. Linux is unchanged.
+
+The window-chrome changes above were introduced in `v0.1.7-rc3` and went through the
+rc3/rc4 cycle, which is where the Settings-gear fixes above came from.
+
 ## [v0.1.7-rc4]
 
 ⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
