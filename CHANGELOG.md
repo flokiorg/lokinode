@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.1.8-rc2]
+
+⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
+specifically testing the dependency update below, stay on `v0.1.7`.
+
+Moves every Flokicoin library to its latest release candidate.
+
+### Changed
+
+- Updates `flnd` to v0.2.6-rc.1 and `go-flokicoin` to v0.26.4-rc.1, taking the
+  latest Flokicoin libraries.
+
 ## [v0.1.8-rc1]
 
 ⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
