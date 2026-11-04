@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.1.8-rc2]
+
+⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
+specifically testing the dependency update below, stay on `v0.1.7`.
+
+Moves every Flokicoin library to its latest release candidate.
+
+### Changed
+
+- Updates `flnd` to v0.2.6-rc.1 and `go-flokicoin` to v0.26.4-rc.1, taking the
+  latest Flokicoin libraries. (#45)
+
+### Security
+
+- Builds with Go 1.26.10 and `golang.org/x/net` v0.60.0, clearing twelve
+  reachable stdlib and `x/net` advisories (GO-2026-6599 through GO-2026-6809)
+  that govulncheck reported. (#45)
+
 ## [v0.1.8-rc1]
 
 ⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
