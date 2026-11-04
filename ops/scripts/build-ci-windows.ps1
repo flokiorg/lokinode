@@ -49,7 +49,13 @@ function Build-Desktop {
         Remove-Item -Recurse -Force 'build/bin'
     }
 
-    wails build -platform $WailsPlatform -webview2 embed -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -ldflags '-s -w' -nsis -o "${Basename}.exe" -clean
+    # The embedded flnd only compiles an RPC subserver when its build tag is
+    # set, so this list - not flnd - decides what the shipped node serves.
+    # signrpc is load-bearing: without it flnd serves a no-op signrpc.Signer
+    # and lokihub cannot sign its transport announcement. Keep in step with the
+    # dev set in the justfile; buildtags_test.go enforces the required tags are
+    # present here.
+    wails build -platform $WailsPlatform -webview2 embed -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc,signrpc -ldflags '-s -w' -nsis -o "${Basename}.exe" -clean
 
     if ($LASTEXITCODE -ne 0) { throw 'wails build failed' }
 
