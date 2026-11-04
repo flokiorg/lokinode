@@ -48,9 +48,15 @@ build_macos_desktop() {
 
     rm -rf build/bin
 
+    # The embedded flnd only compiles an RPC subserver when its build tag is
+    # set, so this list — not flnd — decides what the shipped node serves.
+    # signrpc is load-bearing: without it flnd serves a no-op signrpc.Signer
+    # and lokihub cannot sign its transport announcement. Keep both slices
+    # below in step with the dev set in the justfile; buildtags_test.go
+    # enforces the required tags are present here.
     echo "Building Desktop AMD64 slice..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 CC="clang -arch x86_64" \
-    wails build -platform "darwin/amd64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -trimpath \
+    wails build -platform "darwin/amd64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc,signrpc -trimpath \
             -ldflags "-s -w" \
             -o "${BASENAME}-amd64" -clean
 
@@ -60,7 +66,7 @@ build_macos_desktop() {
 
     echo "Building Desktop ARM64 slice..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 CC="clang -arch arm64" \
-    wails build -platform "darwin/arm64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -trimpath \
+    wails build -platform "darwin/arm64" -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc,signrpc -trimpath \
             -ldflags "-s -w" \
             -o "${BASENAME}-arm64"
 

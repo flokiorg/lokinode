@@ -42,7 +42,12 @@ mkdir -p build/bin
 
 BASENAME="lokinode-${GOOS}-${GOARCH}"
 
-go build -trimpath -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc -ldflags "-s -w" \
+# The embedded flnd only compiles an RPC subserver when its build tag is set,
+# so this list — not flnd — decides what the shipped node serves. signrpc is
+# load-bearing: without it flnd serves a no-op signrpc.Signer and lokihub
+# cannot sign its transport announcement. Keep in step with the dev set in the
+# justfile; buildtags_test.go enforces the required tags are present here.
+go build -trimpath -tags wails,walletrpc,chainrpc,invoicesrpc,routerrpc,peersrpc,signrpc -ldflags "-s -w" \
     -o "build/bin/${BASENAME}" .
 
 echo "--- Staging AppDir ---"

@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.1.8-rc3]
+
+⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
+specifically testing the fix below, stay on `v0.1.7`.
+
+Fixes release builds that shipped without the `signrpc` subserver, so the embedded
+node can sign its transport announcement.
+
+### Fixed
+
+- Fixes release builds omitting the `signrpc` build tag, which left the embedded
+  node serving a no-op `signrpc.Signer` so lokihub could not sign its transport
+  announcement (`unknown service signrpc.Signer`); release builds now compile
+  `signrpc` in. (#47)
+
 ## [v0.1.8-rc2]
 
 ⚠️ **Release candidate — for testing only, not the recommended build.** If you're not
