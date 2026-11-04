@@ -13,7 +13,7 @@ node can sign its transport announcement.
 - Fixes release builds omitting the `signrpc` build tag, which left the embedded
   node serving a no-op `signrpc.Signer` so lokihub could not sign its transport
   announcement (`unknown service signrpc.Signer`); release builds now compile
-  `signrpc` in. (#N)
+  `signrpc` in. (#47)
 
 ## [v0.1.8-rc2]
 
