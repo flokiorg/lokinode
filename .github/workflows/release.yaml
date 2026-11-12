@@ -1,42 +1,140 @@
 name: Release
 
+# Lean by default, extras opt-in per release.
+#
+# Lokinode is a Wails desktop node, so Linux IS its baseline deliverable: every
+# release builds and publishes the Linux desktop packages (.deb/.rpm/.AppImage,
+# amd64+arm64, legacy+modern) -- there is no separate headless "server" variant
+# to split out. Windows and the macOS .dmg are NOT built unless this release
+# opts in, because most rc's aren't going to test them and shipping an untested
+# artifact is worse than omitting it.
+#
+#   include_windows  -> adds the Windows desktop build
+#   include_macos    -> builds the .dmg on Codemagic (external; GitHub-hosted
+#                       macOS runners are capacity-unreliable) and attaches it
+#
+# Publish gate: Linux is always required; an opted-in platform that FAILS blocks
+# the release; a platform that wasn't opted in is simply absent. So you never
+# ship a release missing something you asked for, and never wait on something
+# you didn't. build and publish share one run, so binaries/tag/notes are one
+# commit by construction (this replaces the old build-all.yaml harvest flow,
+# which published artifacts from a separate, possibly-stale run).
+#
+# dry_run=true builds the selected platforms but publishes nothing.
+
 on:
   workflow_dispatch:
+    inputs:
+      include_windows:
+        description: "Also build the Windows desktop app"
+        type: boolean
+        default: false
+      include_macos:
+        description: "Also build the macOS .dmg (via Codemagic)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Build selected platforms but do not publish"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
-  release:
-    name: Create Release
+  linux:
+    name: Linux
+    uses: ./.github/workflows/linux.yaml
+    secrets: inherit
+
+  windows:
+    name: Windows
+    if: ${{ inputs.include_windows }}
+    uses: ./.github/workflows/windows.yaml
+    secrets: inherit
+
+  macos:
+    name: macOS (Codemagic)
+    if: ${{ inputs.include_macos }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      actions: read
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get Latest Build-All Run ID
-        id: get_run_ids
-        uses: actions/github-script@v7
+      - name: Read Version
+        shell: bash
+        run: |
+          TAG=$(cat VERSION | tr -d '[:space:]')
+          [ -n "$TAG" ] || { echo "::error::VERSION empty"; exit 1; }
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Build .dmg on Codemagic and download it
+        env:
+          CM_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+          CM_APP_ID: ${{ secrets.CODEMAGIC_APP_ID }}
+          CM_WORKFLOW: lokinode-macos
+          REF: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CM_TOKEN:-}" ] || [ -z "${CM_APP_ID:-}" ]; then
+            echo "::error::include_macos=true but CODEMAGIC_API_TOKEN / CODEMAGIC_APP_ID secrets are not set. Connect Codemagic first (see codemagic.yaml)."
+            exit 1
+          fi
+          echo "Triggering Codemagic build ($CM_WORKFLOW on $REF)..."
+          build_id=$(curl -sS -X POST https://api.codemagic.io/builds \
+            -H "x-auth-token: $CM_TOKEN" -H "Content-Type: application/json" \
+            -d "{\"appId\":\"$CM_APP_ID\",\"workflowId\":\"$CM_WORKFLOW\",\"branch\":\"$REF\"}" \
+            | jq -r '.buildId')
+          if [ -z "$build_id" ] || [ "$build_id" = "null" ]; then
+            echo "::error::Codemagic did not return a buildId"; exit 1
+          fi
+          echo "Codemagic buildId=$build_id; polling..."
+          status=""
+          for _ in $(seq 1 120); do          # up to ~60 min (30s * 120)
+            sleep 30
+            resp=$(curl -sS https://api.codemagic.io/builds/"$build_id" -H "x-auth-token: $CM_TOKEN")
+            status=$(echo "$resp" | jq -r '.build.status')
+            echo "  status=$status"
+            case "$status" in
+              finished) break ;;
+              failed|timeout|canceled|skipped) echo "::error::Codemagic build $status"; exit 1 ;;
+            esac
+          done
+          [ "$status" = "finished" ] || { echo "::error::Codemagic build did not finish in time (last status: $status)"; exit 1; }
+          dmg_url=$(echo "$resp" | jq -r '.build.artefacts[]? | select(.name|endswith(".dmg")) | .url' | head -1)
+          [ -n "$dmg_url" ] && [ "$dmg_url" != "null" ] || { echo "::error::no .dmg artifact in Codemagic build"; exit 1; }
+          mkdir -p ops/bin
+          echo "Downloading $dmg_url"
+          curl -sSL -H "x-auth-token: $CM_TOKEN" -o "ops/bin/lokinode-macos-${TAG}.dmg" "$dmg_url"
+          ls -lh ops/bin/*.dmg
+
+      - name: Upload Artifacts (macOS)
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            // linux.yaml/macos.yaml/windows.yaml are invoked as reusable
-            // workflows (workflow_call) from build-all.yaml, so their runs
-            // don't show up under their own workflow_id via listWorkflowRuns
-            // - the whole thing is one run, owned by build-all.yaml, with
-            // all three platforms' artifacts attached to that single run.
-            const runs = await github.rest.actions.listWorkflowRuns({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'build-all.yaml',
-              status: 'success',
-              per_page: 1,
-            });
+          name: artifacts-macos-${{ env.TAG }}
+          path: ops/bin/*.dmg
+          if-no-files-found: error
 
-            const runId = runs.data.workflow_runs.length > 0 ? runs.data.workflow_runs[0].id : null;
-            if (!runId) core.setFailed("No successful build-all.yaml runs found.");
-
-            console.log(`build-all.yaml Run ID: ${runId}`);
-            core.setOutput('run_id', runId);
+  publish:
+    name: Publish Release
+    needs: [linux, windows, macos]
+    # Run unless cancelled, as long as the always-on Linux build succeeded and
+    # every OTHER platform either succeeded or was skipped (i.e. not opted in).
+    # An opted-in platform that failed leaves its result = 'failure' and blocks.
+    if: >-
+      ${{ !cancelled() && !inputs.dry_run &&
+          needs.linux.result == 'success' &&
+          needs.windows.result != 'failure' &&
+          needs.macos.result != 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # VERSION stays the build-time input: it is go:embed-ed into the binary
       # (lokinode.go) and wails/http_test.go asserts the reported version keeps
@@ -79,8 +177,7 @@ jobs:
           # Trim leading/trailing blank lines.
           sed -e '/./,$!d' -e ':a' -e '/^\n*$/{$d;N;ba' -e '}' /tmp/notes.raw > /tmp/release-notes.md
 
-          # Previously a missing note meant every later step was skipped and the
-          # job still reported success, publishing nothing. Fail loudly instead.
+          # A missing note would otherwise publish an empty release body. Fail loudly.
           if [ ! -s /tmp/release-notes.md ]; then
             echo "::error::CHANGELOG.md has no content under '## [${{ env.TAG }}]'"
             exit 1
@@ -89,89 +186,39 @@ jobs:
           echo "Releasing ${{ env.TAG }} with notes:"
           cat /tmp/release-notes.md
 
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+      - name: Download this run's build artifacts
+        uses: actions/download-artifact@v4.3.0
         with:
-          run-id: ${{ steps.get_run_ids.outputs.run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: artifacts
 
       - name: Display Artifacts
         run: ls -R artifacts
 
-      # This job harvests artifacts from the most recent successful build-all
-      # run rather than building them, so an older run would otherwise be
-      # published silently under the new tag. Every asset carries the version in
-      # its filename, which makes the mismatch cheap to detect.
-      - name: Verify artifacts match the version being released
+      - name: Verify artifacts (version + required/opted-in platforms)
         shell: bash
+        env:
+          WANT_WINDOWS: ${{ inputs.include_windows }}
+          WANT_MACOS: ${{ inputs.include_macos }}
         run: |
-          FOUND=$(find artifacts -type f | wc -l)
-          if [ "$FOUND" -eq 0 ]; then
-            echo "::error::no artifacts were downloaded from the build-all run"
-            exit 1
-          fi
-
-          MISMATCHED=$(find artifacts -type f ! -name "*${{ env.TAG }}*" || true)
-          if [ -n "$MISMATCHED" ]; then
-            echo "::error::the latest successful build-all run produced artifacts that do not carry ${{ env.TAG }} in their names - it predates this version. Re-run build-all.yaml, then this workflow."
-            echo "$MISMATCHED"
-            exit 1
-          fi
-
-          echo "All $FOUND artifacts carry ${{ env.TAG }}."
-
-      - name: Delete Existing Tag
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              await github.rest.git.deleteRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: `tags/${{ env.TAG }}`
-              });
-              console.log('Deleted existing tag ${{ env.TAG }}');
-            } catch (error) {
-              if (error.status === 404) {
-                console.log('Tag ${{ env.TAG }} does not exist, skipping deletion');
-              } else {
-                throw error;
-              }
-            }
-
-      - name: Delete Existing Release
-        continue-on-error: true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            try {
-              const releases = await github.rest.repos.listReleases({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-              });
-              const release = releases.data.find(r => r.tag_name === '${{ env.TAG }}');
-              if (release) {
-                await github.rest.repos.deleteRelease({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  release_id: release.id
-                });
-                console.log('Deleted existing release for ${{ env.TAG }}');
-              } else {
-                console.log('No existing release found for ${{ env.TAG }}');
-              }
-            } catch (error) {
-              console.error('Error deleting release:', error.message);
-            }
+          set -euo pipefail
+          # Staleness guard: every file carries exactly $TAG, not $TAG+digit.
+          wrong=$(find artifacts -type f ! \( -name "*${TAG}*" -a ! -name "*${TAG}[0-9]*" \) | head -20 || true)
+          if [ -n "$wrong" ]; then echo "::error::artifacts not carrying ${TAG}:"; echo "$wrong"; exit 1; fi
+          versioned=$(find artifacts -type f -name "*${TAG}*" ! -name "*${TAG}[0-9]*")
+          [ -n "$versioned" ] || { echo "::error::no artifacts for ${TAG}"; exit 1; }
+          # Always required: the Linux desktop packages.
+          grep -qiE 'lokinode-linux.*\.(deb|rpm|AppImage)' <<<"$versioned" || { echo "::error::missing required Linux package"; exit 1; }
+          # Opted-in platforms must have delivered their asset.
+          [ "$WANT_WINDOWS" != "true" ] || grep -qi 'windows' <<<"$versioned" || { echo "::error::include_windows set but no windows asset"; exit 1; }
+          [ "$WANT_MACOS" != "true" ] || grep -qiE 'macos.*\.dmg' <<<"$versioned" || { echo "::error::include_macos set but no .dmg"; exit 1; }
+          echo "artifacts OK for ${TAG} ($(grep -c . <<<"$versioned") files)"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           name: Release ${{ env.TAG }}
           body_path: /tmp/release-notes.md
           files: artifacts/**/*
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           prerelease: ${{ contains(env.TAG, '-') }}
