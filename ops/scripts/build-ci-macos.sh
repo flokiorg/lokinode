@@ -119,18 +119,31 @@ build_macos_desktop() {
     codesign --force --deep --sign - "$APP_DEST"
 
     if [ -d "$APP_DEST" ]; then
-        create-dmg \
-            --volname "Lokinode" \
-            --volicon "build/darwin/AppIcon.icns" \
-            --background "build/darwin/dmg-background.png" \
-            --window-pos 200 120 \
-            --window-size 800 400 \
-            --icon-size 100 \
-            --icon "lokinode.app" 200 190 \
-            --hide-extension "lokinode.app" \
-            --app-drop-link 600 185 \
-            "$DMG_PATH" \
-            "$APP_DEST"
+        # create-dmg styles the DMG window via a Finder AppleScript, which times
+        # out (-1712) on a headless CI builder. Try the styled dmg a couple of
+        # times, then fall back to a plain but fully functional dmg so a Finder
+        # hiccup never blocks the release.
+        styled_dmg() {
+            rm -f "$DMG_PATH" ops/bin/rw.*.dmg
+            create-dmg \
+                --volname "Lokinode" \
+                --volicon "build/darwin/AppIcon.icns" \
+                --background "build/darwin/dmg-background.png" \
+                --window-pos 200 120 \
+                --window-size 800 400 \
+                --icon-size 100 \
+                --icon "lokinode.app" 200 190 \
+                --hide-extension "lokinode.app" \
+                --app-drop-link 600 185 \
+                "$DMG_PATH" \
+                "$APP_DEST"
+        }
+        if ! styled_dmg && ! { sleep 10; styled_dmg; }; then
+            echo "Warning: styled create-dmg failed (Finder automation); building a plain dmg"
+            rm -f "$DMG_PATH" ops/bin/rw.*.dmg
+            hdiutil create -volname "Lokinode" -srcfolder "$APP_DEST" -ov -format UDZO "$DMG_PATH"
+        fi
+        rm -f ops/bin/rw.*.dmg
     fi
 
     rm -rf "$APP_DEST"
