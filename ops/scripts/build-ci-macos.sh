@@ -113,33 +113,40 @@ build_macos_desktop() {
     # merge above and the icon copy just above both modify the bundle after
     # that, invalidating the signature (mismatched checksum -> Gatekeeper
     # shows "app is damaged", not the normal bypassable "unidentified
-    # developer" prompt). Re-sign ad-hoc now that the bundle is final, no
-    # earlier and no later.
+    # developer" prompt). Strip quarantine xattrs and re-sign ad-hoc now that
+    # the bundle is final, no earlier and no later.
     echo "Ad-hoc signing the universal app bundle..."
+    xattr -cr "$APP_DEST" 2>/dev/null || true
+    codesign --remove-signature "$APP_DEST" 2>/dev/null || true
     codesign --force --deep --sign - "$APP_DEST"
+    codesign --verify --deep --strict "$APP_DEST" && echo "codesign: ad-hoc signature valid" || echo "Warning: codesign --verify failed"
 
     if [ -d "$APP_DEST" ]; then
-        # create-dmg styles the DMG window via a Finder AppleScript, which times
-        # out (-1712) on a headless CI builder. Try the styled dmg a couple of
-        # times, then fall back to a plain but fully functional dmg so a Finder
-        # hiccup never blocks the release.
-        styled_dmg() {
-            rm -f "$DMG_PATH" ops/bin/rw.*.dmg
-            create-dmg \
-                --volname "Lokinode" \
-                --volicon "build/darwin/AppIcon.icns" \
-                --background "build/darwin/dmg-background.png" \
-                --window-pos 200 120 \
-                --window-size 800 400 \
-                --icon-size 100 \
-                --icon "lokinode.app" 200 190 \
-                --hide-extension "lokinode.app" \
-                --app-drop-link 600 185 \
-                "$DMG_PATH" \
-                "$APP_DEST"
-        }
-        if ! styled_dmg && ! { sleep 10; styled_dmg; }; then
-            echo "Warning: styled create-dmg failed (Finder automation); building a plain dmg"
+        # Build the styled drag-to-Applications dmg with appdmg, which writes the
+        # window layout directly (no Finder), so it works on the headless
+        # Codemagic builder too -- create-dmg's Finder AppleScript times out there
+        # (-1712), which left the Codemagic-built dmg unstyled. Fall back to a
+        # plain hdiutil dmg only if appdmg is unavailable.
+        command -v gm >/dev/null 2>&1 || brew install graphicsmagick >/dev/null 2>&1 || true
+        command -v appdmg >/dev/null 2>&1 || npm install -g appdmg >/dev/null 2>&1 || true
+        cat > /tmp/appdmg.json <<JSONEOF
+{
+  "title": "Lokinode",
+  "icon": "$PWD/build/darwin/AppIcon.icns",
+  "background": "$PWD/build/darwin/dmg-background.png",
+  "icon-size": 100,
+  "window": { "position": { "x": 200, "y": 120 }, "size": { "width": 800, "height": 400 } },
+  "contents": [
+    { "x": 200, "y": 190, "type": "file", "path": "$PWD/$APP_DEST" },
+    { "x": 600, "y": 185, "type": "link", "path": "/Applications" }
+  ]
+}
+JSONEOF
+        rm -f "$DMG_PATH" ops/bin/rw.*.dmg
+        if command -v appdmg >/dev/null 2>&1 && appdmg /tmp/appdmg.json "$DMG_PATH"; then
+            echo "appdmg: styled dmg created"
+        else
+            echo "Warning: appdmg unavailable/failed; building a plain hdiutil dmg"
             rm -f "$DMG_PATH" ops/bin/rw.*.dmg
             hdiutil create -volname "Lokinode" -srcfolder "$APP_DEST" -ov -format UDZO "$DMG_PATH"
         fi
