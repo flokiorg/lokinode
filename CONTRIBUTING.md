@@ -44,21 +44,35 @@ OS packaging metadata, not the release tag (see the comment in `wails/app.go`).
 
 ## How releases are cut
 
-Two manual dispatches, in order:
+One manual dispatch. `release.yaml` builds **and** publishes in the same run, so
+there is no separate build step to run first.
 
 ```sh
-gh workflow run build-all.yaml --repo flokiorg/lokinode   # builds the artifacts
-gh workflow run release.yaml   --repo flokiorg/lokinode   # tags and publishes
+gh workflow run release.yaml --repo flokiorg/lokinode               # Linux only
+gh workflow run release.yaml --repo flokiorg/lokinode -f include_windows=true
+gh workflow run release.yaml --repo flokiorg/lokinode -f include_macos=true
+gh workflow run release.yaml --repo flokiorg/lokinode -f dry_run=true   # build, publish nothing
 ```
 
-`release.yaml` does not build. It harvests the artifacts from the most recent
-successful `build-all.yaml` run, so **build-all has to run first, after the
-version bump has landed**. The workflow now checks that every downloaded
-artifact carries the version in its filename and fails if they do not, which is
-what catches a stale build-all run rather than publishing it silently.
+Lean by default: with no flags it builds and publishes only the Linux desktop
+packages (`.deb`/`.rpm`/`.AppImage`, amd64+arm64), which is what every rc
+actually needs. Extras are opt-in per release:
 
-It then reads the notes from `CHANGELOG.md`, deletes any existing tag and
-release for that version so a re-dispatch republishes cleanly, and creates the
-release. A version containing a hyphen is published as a prerelease.
+- `include_windows` adds the Windows desktop build.
+- `include_macos` builds the `.dmg` on Codemagic (GitHub-hosted macOS runners
+  are capacity-unreliable) and attaches it. This needs the `CODEMAGIC_API_TOKEN`
+  and `CODEMAGIC_APP_ID` repo secrets — see `codemagic.yaml` for the one-time
+  setup. Without them the macOS job fails fast.
+- `dry_run` builds the selected platforms but publishes nothing.
+
+Linux is always required; an opted-in platform that fails blocks the release,
+and one you didn't opt into is simply absent. Because build and publish share
+one run, the binaries, tag, and notes are one commit by construction — the old
+`build-all.yaml` harvest-a-separate-run flow (and its staleness guard) is gone.
+
+It reads the notes from `CHANGELOG.md` — whose topmost `## [vX.Y.Z]` heading must
+match `VERSION` — and creates the release via `softprops/action-gh-release`,
+which updates the release in place if one already exists for the tag. A version
+containing a hyphen is published as a prerelease.
 
 Do not create the tag by hand — the workflow creates it from `VERSION`.
