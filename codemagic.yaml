@@ -27,7 +27,19 @@ workflows:
           # lokinode's macOS build needs Go, create-dmg, the Wails CLI, and
           # pnpm 9 (the frontend uses pnpm, pinned to 9 across the repo).
           brew install go create-dmg || true
-          npm install -g pnpm@9
+          # The Codemagic macOS image's node ships Corepack, which otherwise
+          # hijacks `pnpm` to a packageManager pin baked into the image (not
+          # present in this repo) and can rewrite the lockfile. Disable Corepack
+          # and its project-spec enforcement, then install a real global pnpm 9
+          # (pinned to the last 9.x) so the frozen pnpm-lock.yaml drives the build.
+          corepack disable 2>/dev/null || true
+          npm install -g pnpm@9.15.9
+          echo "COREPACK_ENABLE_PROJECT_SPEC=0" >> "$CM_ENV"
+          # Pin the Go toolchain to a known-good version (brew's latest can break
+          # the CGO darwin/amd64 cross-compile), and match the Wails CLI to
+          # go.mod's wails v2.12.0 (a mismatched CLI mis-drives the cross-compile).
+          echo "GOTOOLCHAIN=go1.26.11" >> "$CM_ENV"
+          export GOTOOLCHAIN=go1.26.11
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "PATH=$HOME/go/bin:$PATH" >> "$CM_ENV"
       - name: Build macOS .dmg
