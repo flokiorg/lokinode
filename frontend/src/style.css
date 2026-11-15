@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+::selection {
+  background-color: #DA9526;
+  color: #000;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Regular';
+  src: url('../public/fonts/SpaceGrotesk-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Medium';
+  src: url('../public/fonts/SpaceGrotesk-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Space Grotesk Bold';
+  src: url('../public/fonts/SpaceGrotesk-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+body {
+  font-family: 'Space Grotesk Regular', sans-serif;
+  background-color: #121212;
+  color: #f9f9f9;
+  /* Safari 16+ / macOS 13+, WebKitGTK 2.36+ / Ubuntu 22.04+.
+     Older targets still allow elastic bounce — no pure CSS fix available. */
+  overscroll-behavior: none;
+  /* Force grayscale antialiasing on all WebView engines.
+     Without this, macOS WKWebView uses heavier subpixel antialiasing which
+     makes white-on-dark text appear bolder/glowing compared to Windows/Linux. */
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  background-color: #121212;
+  color: #f9f9f9;
+  /* Match body font so any element not inheriting body still gets Space Grotesk
+     instead of the OS default sans-serif (critical on Linux/Windows). */
+  font-family: 'Space Grotesk Regular', sans-serif;
+  /* See body overscroll-behavior note above for support boundaries. */
+  overscroll-behavior: none;
+}
+
+
+
+
+@layer base {
+  :root {
+    --background: 240 2% 8%; /* #141414 - Matching .dark */
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 2% 8%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 50%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hide number input spinner arrows on all engines:
+   -webkit-appearance: none  → macOS WKWebView, Windows WebView2, Linux WebKitGTK
+   appearance: none          → standards-based (Chromium 84+, Firefox)
+   -moz-appearance           → Firefox fallback */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ── Custom scrollbar — Loki Kinetic dark theme ─────────────────────────────
+   Uses ::-webkit-scrollbar exclusively across all Wails targets:
+   • macOS  — WKWebView: a non-zero ::-webkit-scrollbar width disables the
+              native overlay scrollbar and activates the custom one globally.
+   • Windows — WebView2 (Chromium): full webkit pseudo-element support.
+   • Linux   — WebKitGTK: webkit pseudo-elements supported on all versions.
+   NOTE: scrollbar-width/scrollbar-color (CSS Scrollbars Level 1) are NOT used
+   here. Safari 18.2+ (macOS 14 Sonoma) and Chromium 121+ give those standards
+   properties precedence over ::-webkit-scrollbar, which would revert to the
+   native OS scrollbar and discard all custom styling below.
+   ────────────────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(218, 149, 38, 0.55);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

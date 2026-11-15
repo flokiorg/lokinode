@@ -1,0 +1,51 @@
+//go:build unix
+
+package lokilog
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/adrg/xdg"
+	"golang.org/x/sys/unix"
+)
+
+func appDataDir() string {
+	return filepath.Join(xdg.DataHome, "lokinode")
+}
+
+func setupCrashLog() {
+	workDir := appDataDir()
+	if err := os.MkdirAll(workDir, 0750); err != nil {
+		return
+	}
+
+	logFile := filepath.Join(workDir, "crash.log")
+	// #nosec G304 -- fixed filename under xdg.DataHome, not request input
+	f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
+	if err != nil {
+		return
+	}
+
+	// Write a separator and startup timestamp
+	_, _ = fmt.Fprintf(f, "\n--- LOKINODE STARTUP: %s ---\n", time.Now().Format(time.RFC3339))
+
+	// Redirect stderr (FD 2) to the file.
+	// This ensures that even unrecovered panics from the Go runtime go to the file.
+	_ = unix.Dup2(int(f.Fd()), 2)
+}
+
+func openLokinodeLog() *os.File {
+	workDir := appDataDir()
+	if err := os.MkdirAll(workDir, 0750); err != nil {
+		return nil
+	}
+	// #nosec G304 -- fixed filename under xdg.DataHome, not request input
+	f, err := os.OpenFile(filepath.Join(workDir, "lokinode.log"), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) //nolint:gosec // fixed filename under xdg.DataHome, not request input
+	if err != nil {
+		return nil
+	}
+	return f
+}
