@@ -1,0 +1,20 @@
+# Known govulncheck findings accepted as unfixable.
+#
+# Format: one OSV ID per line, "#" starts a comment, blank lines ignored.
+# CI (the security-go job in .github/workflows/ci.yaml) fails if govulncheck
+# reports a *reachable* finding whose ID is not listed here -- so adding a line
+# here is a deliberate, reviewed risk acceptance, not a silence-all.
+#
+# This file is intentionally EMPTY as of 2026-10-03.
+#
+# It previously accepted four findings: GO-2026-4887 and GO-2026-4883
+# (github.com/docker/docker), and GO-2026-5004 and GO-2026-4518
+# (github.com/jackc/pgx/v4 and its wire layer). The dependency updates in
+# v0.1.8-rc1 made all four unreachable, so govulncheck now reports nothing at
+# all. The entries were removed rather than left in place: a stale allowlist
+# silently accepts a finding that later becomes genuinely reachable, which is
+# the opposite of what this gate is for.
+#
+# If a finding reappears, CI will fail and name it. Confirm it is genuinely
+# unfixable before adding it back, and record why in
+# docs/DEPENDENCIES.md alongside the entry.
